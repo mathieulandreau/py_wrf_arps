@@ -1,0 +1,13 @@
+*/
+!.gitattribute
+!.gitignore
+!py_wrf_arps
+!py_wrf_arps/**
+!test
+!env
+!*.md
+!data
+!data/**
+data/05_figures/*
+__pycache__
+.ipynb_checkpoints

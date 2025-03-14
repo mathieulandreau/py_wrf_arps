@@ -1,0 +1,632 @@
+all_options = {
+        "2DH" : {
+            "same_ax" : 
+            "X" : "X",
+            "Y" : "Y",
+            "Z" : "Z",
+            "kwargs_get_data" : {
+                "itime" : 
+                "time_slice" :
+                "crop" : 
+                "i_unstag" : 
+                "hinterp" : {
+                    "levels" : 
+                    "ZP" : 
+                }
+            "kwargs_plt" : {
+                "cmap" : "viridis"
+            }
+            "plot_LON_LAT" : True,
+            "kwargs_LON_LAT" : {},
+            "plot_LANDMASK" : True,
+            "kwargs_LANDMASK" : {},
+            "plot_inner_doms" : False,
+            "kwargs_inner_doms" : {},
+        }
+        "2DV" : {
+            "same_ax" : False,
+        }
+        "RECTANGLE" : {
+            "same_ax" : True,
+            "kwargs_plt" : {
+                "color" : "k",
+                "linewidth" : 2,
+            }
+        }
+        "LINE" : {
+            "same_ax" : True,
+            "points" : 
+            "kwargs_plt" : {
+                "color" : "k",
+                "linewidth" : 2,
+                "marker" : "x",
+            }
+        }
+        "LAT" : {
+            "same_ax" : True,
+            "kwargs_get_data" : {"get" : "same kwargs_get_data"},
+            "X" : {"get" : "same X", "dom X"},
+            "Y" : {"get" : "same Y", "dom Y"},
+            "kwargs_plt" : {
+                "colors" : "gray",
+                "linewidths" : 0.5,
+            },
+        }
+        "LON" : {
+            "same_ax" : True,
+            "kwargs_get_data" : {"get" : "same kwargs_get_data"},
+            "X" : {"get" : "same X", "dom X"},
+            "Y" : {"get" : "same Y", "dom Y"},
+            "kwargs_plt" : {
+                "colors" : "gray",
+                "linewidths" : 0.5,
+            },
+        },
+        "LANDMASK" : {
+            "same_ax" : True,
+            "kwargs_plt" : {
+                "colors" : "w",
+                "linewidths" : 0.5,
+                "levels" : 0.5
+            },
+        },
+        "QUIVER" : {
+            "same_ax" : True,
+            "kwargs_plt" : {
+                "color" : "w",
+                "width" : 0.002,
+                "headwidth" : 6,
+                "pivot" : "mid",
+            }
+        }
+    }
+    
+    
+    
+            
+    
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+                
+            
+#------------------------------------------------------------------------------------------------------------------
+#---------------- Rectangle
+#------------------------------------------------------------------------------------------------------------------
+
+
+        
+
+#------------------------------------------------------------------------------------------------------------------
+#---------------- Line
+#------------------------------------------------------------------------------------------------------------------
+            if "line" in params : 
+                line_temp = params["line"]
+                params["line"] = self.get_line_index(dom, line_temp)
+        
+#------------------------------------------------------------------------------------------------------------------
+#---------------- 2D_HORIZONTAL
+#------------------------------------------------------------------------------------------------------------------
+            if typename in ["2D_HORIZONTAL", "2DH"]:
+                #Do not use zoom with horizontal crop ! 
+                if not "X" in params :
+                    params["X"] = dom.get_data("X", **kwargs_get_data)
+                    params["Y"] = dom.get_data("Y", **kwargs_get_data)
+                    params["xlabel"] = dom.get_legend("X")
+                    params["ylabel"] = dom.get_legend("Y")
+                if not "LON" in params :
+                    try : 
+                        params["LON"] = dom.get_data("LON", **kwargs_get_data)
+                        params["LAT"] = dom.get_data("LAT", **kwargs_get_data)
+                        params["LON_MIN"] = dom.get_data("LON_MIN")
+                        params["LON_MAX"] = dom.get_data("LON_MAX")
+                        params["LAT_MIN"] = dom.get_data("LAT_MIN")
+                        params["LAT_MAX"] = dom.get_data("LAT_MAX")
+                    except :
+                        if self.FLAGS["warning"] : print("cannot plot Latitude and Longitude lines in Proj.get_params_for_plot")
+                if not "LANDMASK" in params :
+                    try :
+                        params["LANDMASK"] = dom.get_data("LANDMASK", **kwargs_get_data)
+                    except:
+                        if self.FLAGS["warning"] : print("cannot plot Coastlines in Proj.get_params_for_plot")
+                if "zoom" in params : 
+                    zoom_temp = params["zoom"]
+                    params["zoom"] = self.get_zoom_index(dom, zoom_temp)
+                if type(params["Z"]) is str :
+                    varname = params["Z"]
+                    params["Z"] = dom.get_data(varname, **kwargs_get_data)
+                    if not "clabel" in params : params["clabel"] = dom.get_legend(varname)
+                    if not "cmap" in params : params["cmap"] = dom.get_cmap(varname)
+                if params["Z"].ndim == 3 :
+                    # ASSUMING WE NEED TO DO HORIZONTAL INTERPOLATION
+                    level = params["level"] if "level" in params else 30
+                    ZP_varname = params["ZP"] if "ZP" in params else "Z"
+                    ZP = dom.get_data(ZP_varname, **kwargs_get_data)
+                    params["level"] = level
+                    params["ZP"] = ZP
+                    params["Z"] = interplevel(params["Z"], ZP, level)
+                    if not "title" in params : params["title"] = dom.get_title(varname, **kwargs_get_data, at = "at "+ZP_varname+"="+str(level)+dom.get_units(ZP_varname, latex=True))
+                else :
+                    if not "title" in params : params["title"] = dom.get_title(varname, **kwargs_get_data)
+            
+#------------------------------------------------------------------------------------------------------------------
+#---------------- VCROSS
+#------------------------------------------------------------------------------------------------------------------      
+            
+            elif typename in ["VCROSS", "VERTCROSS", "2DV", "2D_VERTICAL"] :
+                points = self.get_points_for_vcross(dom, params["points"])
+                if type(params["Z"]) is str : 
+                    varname = params["Z"]
+                    if not "clabel" in params : params["clabel"] = dom.get_legend(varname)
+                    if not "title" in params : params["title"] = dom.get_title(varname, **kwargs_get_data)
+                    if not "cmap" in params : params["cmap"] = dom.get_cmap(varname)
+                    data = dom.get_data(varname, **kwargs_get_data)
+                else :
+                    data = params["Z"]
+                ZP = params["ZP"] if "ZP" in params else dom.get_data("ZP", **kwargs_get_data)
+                if type(ZP) is str : ZP = dom.get_data(ZP, **kwargs_get_data) #can be "Z" or "P", ...
+                params["ZP"] = ZP
+                zmax = np.max(ZP[-1, :, :])-1
+                zmin = max(np.min(ZP[0, :, :]), 0)
+                dz_levels = 100
+                if "levels" in params : 
+                    levels = params["levels"]
+                    if type(levels) is tuple :
+                        if len(levels) == 1 :
+                            zmax = min(zmax, levels[0])
+                        elif len(levels) == 2 :
+                            zmin = max(levels[0], zmin)
+                            zmax = min(zmax, levels[1])
+                        elif len(levels) == 3 :
+                            zmin = max(levels[0], zmin)
+                            zmax = min(zmax, levels[1])
+                            dz_levels = levels[3]
+                        levels = np.linspace(zmin, zmax, dz_levels)
+                    elif type(levels) in [int, float] :
+                        zmax = min(zmax, levels)
+                        levels = np.linspace(zmin, zmax, dz_levels)  
+                else :
+                    levels = np.linspace(zmin, zmax, dz_levels)   
+                params["levels"] = levels
+                LAT = params["LAT"] if "LAT" in params else dom.get_data("LAT", **kwargs_get_data)
+                LON = params["LON"] if "LON" in params else dom.get_data("LON", **kwargs_get_data)
+                proj_params = {
+                    'MAP_PROJ': 2,
+                    'TRUELAT1': dom.get_data('TRUELAT1'),
+                    'TRUELAT2': dom.get_data('TRUELAT2'),
+                    'MOAD_CEN_LAT': dom.get_data('CTRLAT'),
+                    'STAND_LON': dom.get_data('TRUELON'),
+                    'POLE_LAT': 90,
+                    'POLE_LON': 0,
+                    'DX': dom.get_data('DX'),
+                    'DY': dom.get_data('DY'),
+                }
+                params["proj"] = proj = WrfProj(**proj_params)
+                params["ll_point"] = ll_point = points_to_coord([LAT[0, 0], LON[0, 0]])
+                params["ind"] = ind = points_to_coord(points)
+
+                Z = vertcross(data, ZP, 
+                              levels=levels, start_point=ind[0],end_point=ind[1],
+                              projection=proj, ll_point=ll_point)
+                Y_temp = vertcross(ZP, ZP, 
+                              levels=levels, start_point=ind[0], end_point=ind[1],
+                              projection=proj, ll_point=ll_point)
+                NX = np.shape(Z)[-1]
+                NY = np.shape(Z)[0]
+                distance, direction = haversine(points[0], points[1])
+                dr = distance // (NX-1)
+                X_vec = np.linspace(0, distance, NX)[:,0]
+                Y_vec = np.nanmean(Y_temp, axis = 1)
+                
+                if not "ylabel" in params : params["ylabel"] = dom.get_legend("ZP")
+                params["X"], params["Y"] = np.meshgrid(X_vec, Y_vec)
+                params["Z"] = np.array(Z)
+
+                if not "xticks" in params : 
+                    NX_ticks = params["NX_ticks"] if "NX_ticks" in params else 5
+                    xticklabels = []
+                    xticks = []
+                    for ix in range(NX_ticks+1):
+                        dist_i =float(distance*ix/NX_ticks)
+                        xticks.append(dist_i)
+                        lat, lon = inverse_haversine((ind[0].lat,ind[0].lon), dist_i, direction)
+                        tmp = (round(lat[0],3), round(lon[0],3))
+                        xticklabels.append(str(tmp[0])+'°N, '+ str(tmp[1])+'°E\n'+str(round(dist_i/1000))+"km")
+                    params["xticks"] = xticks
+                    params["xticklabels"] = xticklabels
+
+                if "contour" in params :
+                    if type(params["contour"]) is str :
+                        c_varname = params["contour"]
+                        c_data = dom.get_data(c_varname, **kwargs_get_data)
+                        if not "contour_label" in params : params["contour_label"] = dom.get_legend(c_varname)
+                    else :
+                        c_data = params["contour"]
+                    C = vertcross(c_data, ZP, 
+                              levels=levels, start_point=ind[0],end_point=ind[1],
+                              projection=proj, ll_point=ll_point)
+                    params["contour"] = np.array(C)
+                        
+                    
+#------------------------------------------------------------------------------------------------------------------
+#---------------- ZT
+#------------------------------------------------------------------------------------------------------------------ 
+            elif typename == "ZT" :
+                itime = params["itime"] if "itime" in params else None
+                crop = params["crop"] if "crop" in params else None
+                params["Y"], params["X"], _, _ = dom.get_ZT(itime=itime, crop=crop)
+                params["ylabel"] = dom.get_legend("Z")
+                
+
+#------------------------------------------------------------------------------------------------------------------
+#---------------- quiver
+#------------------------------------------------------------------------------------------------------------------ 
+            elif typename == "QUIVER" :
+                U = params["U"] if "U" in params else dom.get_data("U", **kwargs_get_data)
+                V = params["V"] if "V" in params else dom.get_data("V", **kwargs_get_data)
+                if type(U) is str : U = dom.get_data(U, **kwargs_get_data)
+                if type(V) is str : V = dom.get_data(V, **kwargs_get_data)
+                if "same_ax" in params and params["same_ax"] :
+                    i_before = i_params - 1
+                    while "same_ax" in params_list[i_before] and params_list[i_before]["same_ax"] :
+                        i_before -= 1
+                    params_before = params_list[i_before]
+                    X = np.copy(params_before["X"])
+                    Y = np.copy(params_before["Y"])
+                    if U.ndim == 3 :
+                        params["ZP"] = ZP = params_before["ZP"]
+                        type_before = params_before["type"]
+                        if type_before in ["VCROSS", "VERTCROSS", "2DV", "2D_VERTICAL"]:
+                            levels = params["levels"] if "levels" in params else params_before["levels"]
+                            params["levels"] = levels
+                            params["proj"] = proj = params_before["proj"]
+                            params["ind"] = ind = params_before["ind"]
+                            params["ll_point"] = ll_point = params_before["ll_point"]
+                            U = vertcross(U, ZP, 
+                                  levels=levels, start_point=ind[0],end_point=ind[1],
+                                  projection=proj, ll_point=ll_point)
+                            V = vertcross(V, ZP, 
+                                  levels=levels, start_point=ind[0],end_point=ind[1],
+                                  projection=proj, ll_point=ll_point)
+                        if type_before in ["2D_HORIZONTAL", "2DH"]:
+                            level = params["level"] if "level" in params else params_before["level"]
+                            params["level"] = level
+                            U = interplevel(U, ZP, level)
+                            V = interplevel(V, ZP, level)
+                            
+                else :
+                    X = params["X"] if X in params else dom.get_data("X", **kwargs_get_data)
+                    Y = params["Y"] if Y in params else dom.get_data("Y", **kwargs_get_data)
+                    if type(X) is str : X = dom.get_data(X, **kwargs_get_data)
+                    if type(Y) is str : Y = dom.get_data(Y, **kwargs_get_data)
+                NY, NX = X.shape
+                N = max(NX, NY)
+                quiver_number = params["quiver_number"] if "quiver_number" in params else 25
+                shift = params["shift"] if "shift" in params else 0
+                quiver_step = max(N//quiver_number, 1)
+                sx = slice(quiver_step//2+int(shift*quiver_step), NX, quiver_step)
+                sy = slice(quiver_step//2+int(shift*quiver_step), NY, quiver_step)
+                s = (sy, sx)
+                params["X"] = X[s]
+                params["Y"] = Y[s]
+                params["U"] = U[s]
+                params["V"] = V[s]   
+            else :
+                print("nothing to prepare")
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    def get_params_for_plot(self, params_list):
+        for i_params, params in enumerate(params_list) :
+            #Default type is 1D (normal plot)
+            if not "type" in params : params["type"] = "1D"
+            #deleting None in params
+            to_del = []
+            for k in params:
+                if params[k] is None :
+                    to_del.append(k)
+            if len(to_del) >0 :
+                for k in to_del :
+                    del(params[k])
+                    
+            if "dom" in params : 
+                dom = self.get_dom(params["dom"])
+            else : 
+                if not "X" in params : 
+                    if len(self.tab_dom == 1) :
+                        if self.FLAGS["warning"] : print("warning : dom is undefined in params, assuming it is the only possible domain")
+                        dom = sim.tab_dom[0]
+                    else :
+                        print("error in sim.get_params_for_plot : cannot get params because dom is not defined in params")
+                else :
+                    continue
+            typename = params["type"].upper() 
+            
+            kwargs_get_data = params["kwargs_get_data"] if "kwargs_get_data" in params else {}
+            
+#------------------------------------------------------------------------------------------------------------------
+#---------------- Rectangle
+#------------------------------------------------------------------------------------------------------------------
+
+
+            if typename in ["rectangle"]:
+                params = select_params(params, default_params["rectangle"])
+                rectangle_temp = params["rectangle"]
+                params["rectangle"] = self.get_rectangle_list(dom, rectangle_temp)
+        
+
+#------------------------------------------------------------------------------------------------------------------
+#---------------- Line
+#------------------------------------------------------------------------------------------------------------------
+           
+            if "line" in params : 
+                line_temp = params["line"]
+                params["line"] = self.get_line_index(dom, line_temp)
+        
+#------------------------------------------------------------------------------------------------------------------
+#---------------- 2D_HORIZONTAL
+#------------------------------------------------------------------------------------------------------------------
+            if typename in ["2D_HORIZONTAL", "2DH"]:
+                #Do not use zoom with horizontal crop ! 
+                if not "X" in params :
+                    params["X"] = dom.get_data("X", **kwargs_get_data)
+                    params["Y"] = dom.get_data("Y", **kwargs_get_data)
+                    params["xlabel"] = dom.get_legend("X")
+                    params["ylabel"] = dom.get_legend("Y")
+                if not "LON" in params :
+                    try : 
+                        params["LON"] = dom.get_data("LON", **kwargs_get_data)
+                        params["LAT"] = dom.get_data("LAT", **kwargs_get_data)
+                        params["LON_MIN"] = dom.get_data("LON_MIN")
+                        params["LON_MAX"] = dom.get_data("LON_MAX")
+                        params["LAT_MIN"] = dom.get_data("LAT_MIN")
+                        params["LAT_MAX"] = dom.get_data("LAT_MAX")
+                    except :
+                        if self.FLAGS["warning"] : print("cannot plot Latitude and Longitude lines in Proj.get_params_for_plot")
+                if not "LANDMASK" in params :
+                    try :
+                        params["LANDMASK"] = dom.get_data("LANDMASK", **kwargs_get_data)
+                    except:
+                        if self.FLAGS["warning"] : print("cannot plot Coastlines in Proj.get_params_for_plot")
+                if "zoom" in params : 
+                    zoom_temp = params["zoom"]
+                    params["zoom"] = self.get_zoom_index(dom, zoom_temp)
+                if type(params["Z"]) is str :
+                    varname = params["Z"]
+                    params["Z"] = dom.get_data(varname, **kwargs_get_data)
+                    if not "clabel" in params : params["clabel"] = dom.get_legend(varname)
+                    if not "cmap" in params : params["cmap"] = dom.get_cmap(varname)
+                if params["Z"].ndim == 3 :
+                    # ASSUMING WE NEED TO DO HORIZONTAL INTERPOLATION
+                    level = params["level"] if "level" in params else 30
+                    ZP_varname = params["ZP"] if "ZP" in params else "Z"
+                    ZP = dom.get_data(ZP_varname, **kwargs_get_data)
+                    params["level"] = level
+                    params["ZP"] = ZP
+                    params["Z"] = interplevel(params["Z"], ZP, level)
+                    if not "title" in params : params["title"] = dom.get_title(varname, **kwargs_get_data, at = "at "+ZP_varname+"="+str(level)+dom.get_units(ZP_varname, latex=True))
+                else :
+                    if not "title" in params : params["title"] = dom.get_title(varname, **kwargs_get_data)
+            
+#------------------------------------------------------------------------------------------------------------------
+#---------------- VCROSS
+#------------------------------------------------------------------------------------------------------------------      
+             default_params = {
+                "rectangle" : {
+                    "same_ax" : True,
+                    "kwargs_plt" : {
+                        "color" : "k",
+                        "linewidth" : 2,
+                    }
+                }
+                "line" : {
+                    "same_ax" : True,
+                    "kwargs_plt" : {
+                        "color" : "k",
+                        "linewidth" : 2,
+                        "marker" : "x",
+                    }
+                }
+                "2DH" : {
+                    "same_ax" : False,
+                    "Xname" : "X",
+                    "Yname" : "Y",
+                    "kwargs_plt" : {
+                        "cmap" : "viridis"
+                    }
+                }
+                "2DV" : {
+                    "
+            }
+            elif typename in ["VCROSS", "VERTCROSS", "2DV", "2D_VERTICAL"] :
+                points = self.get_points_for_vcross(dom, params["points"])
+                if type(params["Z"]) is str : 
+                    varname = params["Z"]
+                    if not "clabel" in params : params["clabel"] = dom.get_legend(varname)
+                    if not "title" in params : params["title"] = dom.get_title(varname, **kwargs_get_data)
+                    if not "cmap" in params : params["cmap"] = dom.get_cmap(varname)
+                    data = dom.get_data(varname, **kwargs_get_data)
+                else :
+                    data = params["Z"]
+                ZP = params["ZP"] if "ZP" in params else dom.get_data("ZP", **kwargs_get_data)
+                if type(ZP) is str : ZP = dom.get_data(ZP, **kwargs_get_data) #can be "Z" or "P", ...
+                params["ZP"] = ZP
+                zmax = np.max(ZP[-1, :, :])-1
+                zmin = max(np.min(ZP[0, :, :]), 0)
+                dz_levels = 100
+                if "levels" in params : 
+                    levels = params["levels"]
+                    if type(levels) is tuple :
+                        if len(levels) == 1 :
+                            zmax = min(zmax, levels[0])
+                        elif len(levels) == 2 :
+                            zmin = max(levels[0], zmin)
+                            zmax = min(zmax, levels[1])
+                        elif len(levels) == 3 :
+                            zmin = max(levels[0], zmin)
+                            zmax = min(zmax, levels[1])
+                            dz_levels = levels[3]
+                        levels = np.linspace(zmin, zmax, dz_levels)
+                    elif type(levels) in [int, float] :
+                        zmax = min(zmax, levels)
+                        levels = np.linspace(zmin, zmax, dz_levels)  
+                else :
+                    levels = np.linspace(zmin, zmax, dz_levels)   
+                params["levels"] = levels
+                LAT = params["LAT"] if "LAT" in params else dom.get_data("LAT", **kwargs_get_data)
+                LON = params["LON"] if "LON" in params else dom.get_data("LON", **kwargs_get_data)
+                proj_params = {
+                    'MAP_PROJ': 2,
+                    'TRUELAT1': dom.get_data('TRUELAT1'),
+                    'TRUELAT2': dom.get_data('TRUELAT2'),
+                    'MOAD_CEN_LAT': dom.get_data('CTRLAT'),
+                    'STAND_LON': dom.get_data('TRUELON'),
+                    'POLE_LAT': 90,
+                    'POLE_LON': 0,
+                    'DX': dom.get_data('DX'),
+                    'DY': dom.get_data('DY'),
+                }
+                params["proj"] = proj = WrfProj(**proj_params)
+                params["ll_point"] = ll_point = points_to_coord([LAT[0, 0], LON[0, 0]])
+                params["ind"] = ind = points_to_coord(points)
+
+                Z = vertcross(data, ZP, 
+                              levels=levels, start_point=ind[0],end_point=ind[1],
+                              projection=proj, ll_point=ll_point)
+                Y_temp = vertcross(ZP, ZP, 
+                              levels=levels, start_point=ind[0], end_point=ind[1],
+                              projection=proj, ll_point=ll_point)
+                NX = np.shape(Z)[-1]
+                NY = np.shape(Z)[0]
+                distance, direction = haversine(points[0], points[1])
+                dr = distance // (NX-1)
+                X_vec = np.linspace(0, distance, NX)[:,0]
+                Y_vec = np.nanmean(Y_temp, axis = 1)
+                
+                if not "ylabel" in params : params["ylabel"] = dom.get_legend("ZP")
+                params["X"], params["Y"] = np.meshgrid(X_vec, Y_vec)
+                params["Z"] = np.array(Z)
+
+                if not "xticks" in params : 
+                    NX_ticks = params["NX_ticks"] if "NX_ticks" in params else 5
+                    xticklabels = []
+                    xticks = []
+                    for ix in range(NX_ticks+1):
+                        dist_i =float(distance*ix/NX_ticks)
+                        xticks.append(dist_i)
+                        lat, lon = inverse_haversine((ind[0].lat,ind[0].lon), dist_i, direction)
+                        tmp = (round(lat[0],3), round(lon[0],3))
+                        xticklabels.append(str(tmp[0])+'°N, '+ str(tmp[1])+'°E\n'+str(round(dist_i/1000))+"km")
+                    params["xticks"] = xticks
+                    params["xticklabels"] = xticklabels
+
+                if "contour" in params :
+                    if type(params["contour"]) is str :
+                        c_varname = params["contour"]
+                        c_data = dom.get_data(c_varname, **kwargs_get_data)
+                        if not "contour_label" in params : params["contour_label"] = dom.get_legend(c_varname)
+                    else :
+                        c_data = params["contour"]
+                    C = vertcross(c_data, ZP, 
+                              levels=levels, start_point=ind[0],end_point=ind[1],
+                              projection=proj, ll_point=ll_point)
+                    params["contour"] = np.array(C)
+                        
+                    
+#------------------------------------------------------------------------------------------------------------------
+#---------------- ZT
+#------------------------------------------------------------------------------------------------------------------ 
+            elif typename == "ZT" :
+                itime = params["itime"] if "itime" in params else None
+                crop = params["crop"] if "crop" in params else None
+                params["Y"], params["X"], _, _ = dom.get_ZT(itime=itime, crop=crop)
+                params["ylabel"] = dom.get_legend("Z")
+                
+
+#------------------------------------------------------------------------------------------------------------------
+#---------------- quiver
+#------------------------------------------------------------------------------------------------------------------ 
+            elif typename == "QUIVER" :
+                U = params["U"] if "U" in params else dom.get_data("U", **kwargs_get_data)
+                V = params["V"] if "V" in params else dom.get_data("V", **kwargs_get_data)
+                if type(U) is str : U = dom.get_data(U, **kwargs_get_data)
+                if type(V) is str : V = dom.get_data(V, **kwargs_get_data)
+                if "same_ax" in params and params["same_ax"] :
+                    i_before = i_params - 1
+                    while "same_ax" in params_list[i_before] and params_list[i_before]["same_ax"] :
+                        i_before -= 1
+                    params_before = params_list[i_before]
+                    X = np.copy(params_before["X"])
+                    Y = np.copy(params_before["Y"])
+                    if U.ndim == 3 :
+                        params["ZP"] = ZP = params_before["ZP"]
+                        type_before = params_before["type"]
+                        if type_before in ["VCROSS", "VERTCROSS", "2DV", "2D_VERTICAL"]:
+                            levels = params["levels"] if "levels" in params else params_before["levels"]
+                            params["levels"] = levels
+                            params["proj"] = proj = params_before["proj"]
+                            params["ind"] = ind = params_before["ind"]
+                            params["ll_point"] = ll_point = params_before["ll_point"]
+                            U = vertcross(U, ZP, 
+                                  levels=levels, start_point=ind[0],end_point=ind[1],
+                                  projection=proj, ll_point=ll_point)
+                            V = vertcross(V, ZP, 
+                                  levels=levels, start_point=ind[0],end_point=ind[1],
+                                  projection=proj, ll_point=ll_point)
+                        if type_before in ["2D_HORIZONTAL", "2DH"]:
+                            level = params["level"] if "level" in params else params_before["level"]
+                            params["level"] = level
+                            U = interplevel(U, ZP, level)
+                            V = interplevel(V, ZP, level)
+                            
+                else :
+                    X = params["X"] if X in params else dom.get_data("X", **kwargs_get_data)
+                    Y = params["Y"] if Y in params else dom.get_data("Y", **kwargs_get_data)
+                    if type(X) is str : X = dom.get_data(X, **kwargs_get_data)
+                    if type(Y) is str : Y = dom.get_data(Y, **kwargs_get_data)
+                NY, NX = X.shape
+                N = max(NX, NY)
+                quiver_number = params["quiver_number"] if "quiver_number" in params else 25
+                shift = params["shift"] if "shift" in params else 0
+                quiver_step = max(N//quiver_number, 1)
+                sx = slice(quiver_step//2+int(shift*quiver_step), NX, quiver_step)
+                sy = slice(quiver_step//2+int(shift*quiver_step), NY, quiver_step)
+                s = (sy, sx)
+                params["X"] = X[s]
+                params["Y"] = Y[s]
+                params["U"] = U[s]
+                params["V"] = V[s]   
+            else :
+                print("nothing to prepare")
+    

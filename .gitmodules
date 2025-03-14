@@ -1,0 +1,4 @@
+[submodule "py_wrf_arps/lib/TurbAna"]
+	path = py_wrf_arps/lib/TurbAna
+    url = https://github.com/HexFluid/TurbAna.git
+    ignore = all
