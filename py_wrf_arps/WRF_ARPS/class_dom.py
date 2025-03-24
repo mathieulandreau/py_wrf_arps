@@ -466,10 +466,10 @@ class Dom():
                 return self.date_list_stats[time_slice]
             
             # for WD or COV or ... , it is better to interpolate or average other quantities and then calculate, so we skip this now and go to calculate first
-            avg_before = (varname.startswith("WD") or varname.startswith("MH") or varname.startswith("SCORER") or self.is_statistics(varname, avg_stats) or self.is_vectorial(varname) or varname in ["DGWRDT", "GAMMA"])
+            avg_before = (varname.startswith("WD") or varname.startswith("MH") or varname.startswith("SCORER") or self.is_statistics(varname, avg_stats) or self.is_vectorial(varname) or varname in ["DGWRDT", "GAMMA", "it", "iz", "iy", "ix"])
             interp_before = avg_before or varname.startswith("X2DV")
-            smooth_before = interp_before or ("TIME" in varname or varname in ["X", "Y", "LON", "LAT"] or varname[:2] in ["DX", "DY", "DZ"] \
-                             or "LANDMASK" in varname or "COASTDIST" in varname or varname[:3] in ["COR", "CGX", "CGY"]\
+            smooth_before = interp_before or ("TIME" in varname or varname in ["X", "Y", "LON", "LAT"] or varname[:2] in ["DX", "DY"] \
+                             or "LANDMASK" in varname or "COASTDIST" in varname or varname[:3] in ["COR", "CGX", "CGY", "CDI"]\
                              or self.is_derivative(varname, avg_deriv))
             
             kw_get = dict(time_slice=time_slice, crop=crop, i_unstag=i_unstag, avg=avg, avg_time=avg_time, DX_smooth=DX_smooth, n_procs=n_procs, sigma=sigma, 
@@ -600,7 +600,7 @@ class Dom():
     def smooth(self, varname, DX_smooth=None, crop=None, truncate=5, saved={}, **kw_get):
         """
         Description
-            Smooth horizontally in model coordinates with a gaussian filter. Assuming a constant value of DX.
+            Smooth horizontally in model coordinates with a Gaussian filter. Assuming a constant value of DX.
         Parameters
             self : Dom
             varname : str : name of the variable 
@@ -610,7 +610,7 @@ class Dom():
         Output
             the horizontally smoothed data
         """
-        if varname.endswith("STAG") and i_unstag == None and not ZP.endswith("STAG") :
+        if varname.endswith("STAG") and kw_get["i_unstag"] == None :
             raise(Exception("error in Proj.smooth : cannot smooth horizontally with staggered variable : " + varname + "\n"+ 
                             "Modify the code if you need to do this"))
         
@@ -1022,7 +1022,7 @@ class Dom():
         """
         return varname[0] in ["P", "A", "T", "D", "B"] and (varname[1:4] == "TKE" or (varname[1] in ["U", "V", "W"] and varname[2] in ["U", "V", "W"]))
         
-    def find_axis(self, axis, dim=None, varname=None, time_slice=None, crop=None, i_unstag=None, **kwargs):
+    def find_axis(self, axis, dim=None, varname=None, time_slice=None, crop=None, i_unstag=None, itime=None, **kwargs):
         """
         Description
             find the dimension corresponding to 'x', 'y', 'z' or 't' based on kwargs_get_data and a variable
@@ -1048,12 +1048,15 @@ class Dom():
         count_dim = 0
         # time slice can be int or slice
         # is there a time dimension ?
+        if time_slice is None : #when find_axis is called in Dom.calculate, this shouldn't happen
+            time_slice = manage_time.get_time_slice(itime, self.date_list, self.max_time_correction)
         if type(time_slice) in [int, np.int64] : #No
             if axis == "t" : 
                 return None
         else : #Yes
             if axis == "t" : return 0
             count_dim += 1
+        crop = self.prepare_crop_for_get(crop, varname) #when find_axis is called in Dom.calculate, this shouldn't be necessary
         cropz, cropy, cropx = crop
         # cropz can be int or list
         # is there a z dimension ?
@@ -1096,7 +1099,7 @@ class Dom():
             or (varname.startswith("GW") and (varname.endswith("LAM") or varname.endswith("LAMM") or varname.endswith("DIR") or varname.endswith("S")
                                               or varname.endswith("SM") or varname.endswith("D"))) :
             return 0
-        elif varname in ["GWM2R", "GWM2L", "GWM2D"] or varname.startswith("GWMASK") :
+        elif varname in ["GWM2R", "GWM2L", "GWM2D"] or varname.startswith("GWMASK") or varname.startswith("LLJ_"):
             return 2
         else : 
             varname2 = self.find_similar_variable(varname)
@@ -1121,7 +1124,7 @@ class Dom():
         """
         if varname[:3] in ["DZ_", "CC_"] : 
             return varname[3:]
-        elif varname[:4] in ["DXC_", "DXW_", "DYC_", "DYW_", "DIV_", "ROT_", "DCC_", "DIR_", "DTW_", "DTC_"] : 
+        elif varname[:4] in ["DXC_", "DXW_", "DYC_", "DYW_", "DIV_", "ROT_", "DCC_", "DIR_", "DTW_", "DTC_", "LLJ_"] : 
             return varname[4:]
         elif varname[:5] in ["DETA_", "GRAD_", "NORM_", "GWM2_", "GWM4_"] : 
             return varname[5:]
@@ -1285,7 +1288,7 @@ class Dom():
         Z_vec = self.get_data("Z", itime=itime, crop=crop)
         diff = np.abs(z_in - Z_vec)
         iz = np.argmin(diff)
-        result = (iz,)
+        result = (iz,) if return_Z or return_diff else iz
         if return_Z :
             result += (Z_vec[iz],)
         if return_diff :
@@ -1629,7 +1632,8 @@ class Dom():
             COASTCELL = manage_images.get_COASTCELL(LANDMASK2)
             self.VARIABLES[varname] = VariableSave("Coast cells mask", "Coast cells mask", "", "", 2, COASTCELL, cmap=0)
             return self.get_data(varname, **kwargs) #call again get data, if ever there is a crop, it will be done in VariableSave
-        elif varname in ["COASTDIST", "COASTDIST_KM"] :
+        elif varname in ["COASTDIST", "COASTDIST_KM", "CDI"] :
+            if varname == "CDI": varname = "COASTDIST_KM"
             LANDMASK2 = self.get_data("LANDMASK2") #on continental mask (no islands)
             X = self.get_data("X"+varname[9:])
             Y = self.get_data("Y"+varname[9:])
@@ -1712,154 +1716,14 @@ class Dom():
             return self.calculate_stability(varname, **kwargs)
         elif varname == "WD_SB" : 
             return self.calculate_WD_SB()
-        elif varname in ["GWD", "GWLAM", "GWS", "GWSM", 
-                         "GWM2D", "GWM2X1", "GWM2Y1", "GWM2RMAX", "GWM2LMAX",
-                         "GWM4LAMM", "GWM4SM", "GWM4D"] :
-            # Gravity wave direction, wavelength, speed on the 17th May 2020
-            # This variable is specific to this event
-            if self.FLAGS["df"] :
-                df = list(self.output_filenames["df"].values())[0]
-                out = df[varname][kwargs["time_slice"]]
-                if type(out) in [int, float, np.int64, np.float64]:
-                    return out
-                elif type(out) in [list, np.array, np.ndarray, pd.core.series.Series] :
-                    out = np.expand_dims(np.array(out), axis=(-3, -2, -1)) #(NT, NZ, NY, NX) (will be squeezed later in get_data)
-                    return out
-                else :
-                    raise(Exception(f"Unknow type {type(out)}"))
-            else :
-                raise(Exception(f"error in Dom.calculate {varname} : please add the online calculation of {varname} or calculate before and save in df (see Dom.compute_GW_carac_from_2DH)"))
-        elif varname in ["GWMASK"] : 
-            new_kwargs = {
-                "time_slice" : kwargs["time_slice"],
-                "hinterp" : {
-                    "levels" : 300,
-                },
-                "saved" : {},
-            }
-            W = self.get_data("W", **new_kwargs)
-            CDI, DY, DX = self.get_data(["COASTDIST", "DY", "DX"])
-            return manage_GW.get_GWzone(W, CDI, DY, DX, display=False)
-        elif varname in ["GWM2R", "GWM2L"] :
-            X, Y, GWM2D, GWM2X1, GWM2Y1 = self.get_data(["X3", "Y3", "GWM2D", "GWM2X1", "GWM2Y1"], **kwargs)
-            angle = np.deg2rad(GWM2D) # this angle indicates the direction of Xr (see paper 1) in meteorological convention
-            s = np.sin(angle)
-            c = np.cos(angle)
-            if varname == "GWM2R" :
-                r1 = -s * GWM2X1 -c * GWM2Y1
-                return -s * X -c * Y - r1
-            elif varname == "GWM2L" :
-                l1 = c*GWM2X1 -s*GWM2Y1
-                return c*X -s*Y - l1
-        elif varname in ["GWM2U", "GWM2V"] :
-            U, V, GWM2D = self.get_data(["U", "V", "GWM2D"], **kwargs)
-            angle = np.deg2rad(GWM2D)
-            # if type(angle) in [np.array, np.ndarray] : #several timestep
-            #     angle = np.expand_dims(angle, axis=(-3, -2, -1))
-            s = np.sin(angle)
-            c = np.cos(angle)
-            if varname == "GWM2U" :
-                return -s*U -c*V
-            elif varname == "GWM2V" :
-                return c*U -s*V
-        elif varname in ["GWMASK2", "GWMASK3", "GWMASK4"] :
-            GWM2R, GWM2L, CDI, BDI = self.get_data(["GWM2R", "GWM2L", "COASTDIST", "BDY_DIST"], **kwargs)
-            GWM2LMAX = self.get_data("GWM2LMAX", **kwargs)
-            GWM2RMAX = self.get_data("GWM2RMAX", **kwargs) if varname=="GWMASK2" else 5000
-            RMIN = 2000 if varname == "GWMASK4" else 0
-            mr = np.logical_and(GWM2R >= RMIN, GWM2R <= GWM2RMAX)
-            ml = np.logical_and(GWM2L >= 0, GWM2L <= GWM2LMAX)
-            mDI = np.logical_and(BDI > 2000, CDI < -2000)
-            while mDI.ndim < mr.ndim :
-                mDI = np.expand_dims(mDI, axis=0)
-            return 1* np.logical_and(np.logical_and(mr, ml), mDI)
-        elif varname in ["GWA"] :
-            new_kwargs = copy.deepcopy(kwargs)
-            new_kwargs["DX_smooth"] = 1
-            new_kwargs["saved"] = {}
-            W = self.get_data("W", **new_kwargs)
-            W2 = self.get_data("SQUARED_W", **new_kwargs)
-            return np.sqrt(2*(W2 - W**2))
-        elif varname.startswith("GWAVG") : #ex : GWAVGU, GWAVGV
-            new_kwargs = copy.deepcopy(kwargs)
-            new_kwargs["DX_smooth"] = 1
-            new_kwargs["saved"] = {}
-            return self.get_data(varname[5:], **new_kwargs)
-        elif varname.startswith("GWA") : #ex : GWAU, GWAV
-            new_kwargs = copy.deepcopy(kwargs)
-            new_kwargs["DX_smooth"] = 1
-            new_kwargs["saved"] = {}
-            var = self.get_data(varname[3:], **new_kwargs)
-            var2 = self.get_data("SQUARED_"+varname[3:], **new_kwargs)
-            return np.sqrt(2*(var2 - var**2))
-        elif varname in ["GWR", "GWR_INST"] :
-            # Gravity wave radial coordinate on the 17th May 2020
-            # This variable is specific to this event
-            # Based on the direction GWM4D, calculated by the gradient method within the zone GWMASK4
-            # GWR is used to calculate the TKE correction, and to study the differences within the GW (in paper 1 Mathieu Landreau et al.)
-            new_kwargs = copy.deepcopy(kwargs)
-            new_kwargs["crop"] = (15, kwargs["crop"][1], kwargs["crop"][2])
-            new_kwargs["saved"] = {}
-            
-            GWLAM = self.get_data("GWM4LAMM", **new_kwargs)
-            GWD = self.get_data("GWM4D", **new_kwargs)
-            angle_rad = np.deg2rad(GWD)
-            W, dWdx, dWdy = self.get_data(["W"+varname[3:], "DXC_W"+varname[3:], "DYC_W"+varname[3:]], **new_kwargs)
-            dWdr = -dWdx*np.sin(angle_rad) - dWdy*np.cos(angle_rad)
-            dWdr_norm = dWdr  * GWLAM / (2*np.pi)
-            GWR = np.arctan2(W, dWdr_norm) / (2*np.pi)
-            GWR[GWR < 0] += 1
-            return GWR
-        elif varname in ["DGWRDT"] :
-            DT = manage_time.timedelta_to_seconds(self.get_data("DT_HIST"))
-            time_slice = kwargs["time_slice"]
-            it_list = np.arange(5000, dtype="int")[time_slice]
-            if type(it_list) in [int, np.int64] :
-                it_list = np.array([it_list])
-            NT = len(it_list)
-            it_list2 = []
-            for it in it_list :
-                if it < 2 :
-                    raise(Exception("error : cannot compute DGWRDT at time it = " +str(it)))
-                it_list2.append(it-1)
-                it_list2.append(it)
-            new_kwargs = copy.deepcopy(kwargs)
-            new_kwargs["time_slice"] = it_list2
-            new_kwargs["saved"] = {}
-            var = self.get_data("GWR_INST", **new_kwargs)
-            old_shape = var.shape
-            new_shape = (NT, 2) + old_shape[1:]
-            DGWR = np.diff(np.reshape(var, new_shape), axis=1)
-            if NT == 1 :
-                DGWR = DGWR[0]
-            DGWR[DGWR > 0.5] -= 1
-            DGWR[DGWR < -0.5] += 1
-            return DGWR/DT
-        elif varname.startswith("GWIM2") :
-            # Variance induced by gravity waves displacement
-            varname2 = varname[5:]
-            GWSM, GWLAM, GWR, GWAvar = self.get_data(["GWM4SM", "GWM4LAMM", "GWR", "GWA"+varname2], **kwargs)
-            DT = 600
-            OMEGA = 2*np.pi * GWSM/GWLAM
-            # PHI = ((GWR+0.25)%1) * 2*np.pi if varname2 == "W" else ((GWR+0.5)%1) * 2*np.pi
-            PHI = GWR * 2*np.pi if varname2 == "W" else ((GWR-0.25)%1) * 2*np.pi
-            return manage_GW.GW_variance(GWAvar, OMEGA, PHI, DT=600)
-        elif varname.startswith("GWCM2") :
-            # Variance corrected by deducing GW variance
-            varname2 = varname[5:]
-            GWIM2var, M2var = self.get_data(["GWIM2"+varname2, "M2"+varname2], **kwargs)
-            return M2var - GWIM2var
-        elif varname.startswith("GWCSTD") :
-            # Standard deviation corrected by deducing GW variance
-            varname2 = varname[6:]
-            GWCM2var = self.get_data("GWCM2"+varname2, **kwargs)
-            return np.sqrt(GWCM2var)
-        elif varname in ["GWITKE"] :
-            M2U, M2V, M2W = self.get_data(["GWIM2U", "GWIM2V", "GWIM2W"], **kwargs)
-            return 0.5*(M2U + M2V + M2W)
-        elif varname in ["GWCTKE", "GWCTKE_RES"] :
-            TKE, GWITKE = self.get_data(["TKE"+varname[6:], "GWITKE"], **kwargs)
-            return TKE - GWITKE
+        elif varname in ["GWD", "GWLAM", "GWS", "GWSM", "GWM2D", "GWM2X1", "GWM2Y1", "GWM2RMAX", "GWM2LMAX","GWM4LAMM", "GWM4SM", "GWM4D",
+                        "GWM2R", "GWM2L", "GWM2U", "GWM2V", "GWMASK2", "GWMASK3", "GWMASK4", "GWA", "GWR", "GWR_INST", "DGWRDT", "GWITKE",
+                        "GWCTKE", "GWCTKE_RES"]\
+            or varname.startswith("GWAVG") or varname.startswith("GWA") or varname.startswith("GWIM2") or varname.startswith("GWCM2")\
+            or varname.startswith("GWCSTD") :
+            return self.calculate_GW(varname, **kwargs)
+        elif varname.startswith("LLJ_"):
+            return self.calculate_LLJ(varname, **kwargs)
         elif varname in ["CS"] : #Sound velocity
             TV = self.get_data("TV", **kwargs)
             return np.sqrt(constants.GAMMA * constants.RD * TV)
@@ -2716,6 +2580,158 @@ class Dom():
 ######  POST_PROCESS_GRAVITY_WAVES
 #################################################################################################################################
         
+    def calculate_GW(self, varname, **kwargs):
+        if varname in ["GWD", "GWLAM", "GWS", "GWSM", 
+                         "GWM2D", "GWM2X1", "GWM2Y1", "GWM2RMAX", "GWM2LMAX",
+                         "GWM4LAMM", "GWM4SM", "GWM4D"] :
+            # Gravity wave direction, wavelength, speed on the 17th May 2020
+            # This variable is specific to this event
+            if self.FLAGS["df"] :
+                df = list(self.output_filenames["df"].values())[0]
+                out = df[varname][kwargs["time_slice"]]
+                if type(out) in [int, float, np.int64, np.float64]:
+                    return out
+                elif type(out) in [list, np.array, np.ndarray, pd.core.series.Series] :
+                    out = np.expand_dims(np.array(out), axis=(-3, -2, -1)) #(NT, NZ, NY, NX) (will be squeezed later in get_data)
+                    return out
+                else :
+                    raise(Exception(f"Unknow type {type(out)}"))
+            else :
+                raise(Exception(f"error in Dom.calculate {varname} : please add the online calculation of {varname} or calculate before and save in df (see Dom.compute_GW_carac_from_2DH)"))
+        elif varname in ["GWMASK"] : 
+            new_kwargs = {
+                "time_slice" : kwargs["time_slice"],
+                "hinterp" : {
+                    "levels" : 300,
+                },
+                "saved" : {},
+            }
+            W = self.get_data("W", **new_kwargs)
+            CDI, DY, DX = self.get_data(["COASTDIST", "DY", "DX"])
+            return manage_GW.get_GWzone(W, CDI, DY, DX, display=False)
+        elif varname in ["GWM2R", "GWM2L"] :
+            X, Y, GWM2D, GWM2X1, GWM2Y1 = self.get_data(["X3", "Y3", "GWM2D", "GWM2X1", "GWM2Y1"], **kwargs)
+            angle = np.deg2rad(GWM2D) # this angle indicates the direction of Xr (see paper 1) in meteorological convention
+            s = np.sin(angle)
+            c = np.cos(angle)
+            if varname == "GWM2R" :
+                r1 = -s * GWM2X1 -c * GWM2Y1
+                return -s * X -c * Y - r1
+            elif varname == "GWM2L" :
+                l1 = c*GWM2X1 -s*GWM2Y1
+                return c*X -s*Y - l1
+        elif varname in ["GWM2U", "GWM2V"] :
+            U, V, GWM2D = self.get_data(["U", "V", "GWM2D"], **kwargs)
+            angle = np.deg2rad(GWM2D)
+            # if type(angle) in [np.array, np.ndarray] : #several timestep
+            #     angle = np.expand_dims(angle, axis=(-3, -2, -1))
+            s = np.sin(angle)
+            c = np.cos(angle)
+            if varname == "GWM2U" :
+                return -s*U -c*V
+            elif varname == "GWM2V" :
+                return c*U -s*V
+        elif varname in ["GWMASK2", "GWMASK3", "GWMASK4"] :
+            GWM2R, GWM2L, CDI, BDI = self.get_data(["GWM2R", "GWM2L", "COASTDIST", "BDY_DIST"], **kwargs)
+            GWM2LMAX = self.get_data("GWM2LMAX", **kwargs)
+            GWM2RMAX = self.get_data("GWM2RMAX", **kwargs) if varname=="GWMASK2" else 5000
+            RMIN = 2000 if varname == "GWMASK4" else 0
+            mr = np.logical_and(GWM2R >= RMIN, GWM2R <= GWM2RMAX)
+            ml = np.logical_and(GWM2L >= 0, GWM2L <= GWM2LMAX)
+            mDI = np.logical_and(BDI > 2000, CDI < -2000)
+            while mDI.ndim < mr.ndim :
+                mDI = np.expand_dims(mDI, axis=0)
+            return 1* np.logical_and(np.logical_and(mr, ml), mDI)
+        elif varname in ["GWA"] :
+            new_kwargs = copy.deepcopy(kwargs)
+            new_kwargs["DX_smooth"] = 1
+            new_kwargs["saved"] = {}
+            W = self.get_data("W", **new_kwargs)
+            W2 = self.get_data("SQUARED_W", **new_kwargs)
+            return np.sqrt(2*(W2 - W**2))
+        elif varname.startswith("GWAVG") : #ex : GWAVGU, GWAVGV
+            new_kwargs = copy.deepcopy(kwargs)
+            new_kwargs["DX_smooth"] = 1
+            new_kwargs["saved"] = {}
+            return self.get_data(varname[5:], **new_kwargs)
+        elif varname.startswith("GWA") : #ex : GWAU, GWAV
+            new_kwargs = copy.deepcopy(kwargs)
+            new_kwargs["DX_smooth"] = 1
+            new_kwargs["saved"] = {}
+            var = self.get_data(varname[3:], **new_kwargs)
+            var2 = self.get_data("SQUARED_"+varname[3:], **new_kwargs)
+            return np.sqrt(2*(var2 - var**2))
+        elif varname in ["GWR", "GWR_INST"] :
+            # Gravity wave radial coordinate on the 17th May 2020
+            # This variable is specific to this event
+            # Based on the direction GWM4D, calculated by the gradient method within the zone GWMASK4
+            # GWR is used to calculate the TKE correction, and to study the differences within the GW (in paper 1 Mathieu Landreau et al.)
+            new_kwargs = copy.deepcopy(kwargs)
+            new_kwargs["crop"] = (15, kwargs["crop"][1], kwargs["crop"][2])
+            new_kwargs["saved"] = {}
+            
+            GWLAM = self.get_data("GWM4LAMM", **new_kwargs)
+            GWD = self.get_data("GWM4D", **new_kwargs)
+            angle_rad = np.deg2rad(GWD)
+            W, dWdx, dWdy = self.get_data(["W"+varname[3:], "DXC_W"+varname[3:], "DYC_W"+varname[3:]], **new_kwargs)
+            dWdr = -dWdx*np.sin(angle_rad) - dWdy*np.cos(angle_rad)
+            dWdr_norm = dWdr  * GWLAM / (2*np.pi)
+            GWR = np.arctan2(W, dWdr_norm) / (2*np.pi)
+            GWR[GWR < 0] += 1
+            return GWR
+        elif varname in ["DGWRDT"] :
+            DT = manage_time.timedelta_to_seconds(self.get_data("DT_HIST"))
+            time_slice = kwargs["time_slice"]
+            it_list = np.arange(5000, dtype="int")[time_slice]
+            if type(it_list) in [int, np.int64] :
+                it_list = np.array([it_list])
+            NT = len(it_list)
+            it_list2 = []
+            for it in it_list :
+                if it < 2 :
+                    raise(Exception("error : cannot compute DGWRDT at time it = " +str(it)))
+                it_list2.append(it-1)
+                it_list2.append(it)
+            new_kwargs = copy.deepcopy(kwargs)
+            new_kwargs["time_slice"] = it_list2
+            new_kwargs["saved"] = {}
+            var = self.get_data("GWR_INST", **new_kwargs)
+            old_shape = var.shape
+            new_shape = (NT, 2) + old_shape[1:]
+            DGWR = np.diff(np.reshape(var, new_shape), axis=1)
+            if NT == 1 :
+                DGWR = DGWR[0]
+            DGWR[DGWR > 0.5] -= 1
+            DGWR[DGWR < -0.5] += 1
+            return DGWR/DT
+        elif varname.startswith("GWIM2") :
+            # Variance induced by gravity waves displacement
+            varname2 = varname[5:]
+            GWSM, GWLAM, GWR, GWAvar = self.get_data(["GWM4SM", "GWM4LAMM", "GWR", "GWA"+varname2], **kwargs)
+            DT = 600
+            OMEGA = 2*np.pi * GWSM/GWLAM
+            # PHI = ((GWR+0.25)%1) * 2*np.pi if varname2 == "W" else ((GWR+0.5)%1) * 2*np.pi
+            PHI = GWR * 2*np.pi if varname2 == "W" else ((GWR-0.25)%1) * 2*np.pi
+            return manage_GW.GW_variance(GWAvar, OMEGA, PHI, DT=600)
+        elif varname.startswith("GWCM2") :
+            # Variance corrected by deducing GW variance
+            varname2 = varname[5:]
+            GWIM2var, M2var = self.get_data(["GWIM2"+varname2, "M2"+varname2], **kwargs)
+            return M2var - GWIM2var
+        elif varname.startswith("GWCSTD") :
+            # Standard deviation corrected by deducing GW variance
+            varname2 = varname[6:]
+            GWCM2var = self.get_data("GWCM2"+varname2, **kwargs)
+            return np.sqrt(GWCM2var)
+        elif varname in ["GWITKE"] :
+            M2U, M2V, M2W = self.get_data(["GWIM2U", "GWIM2V", "GWIM2W"], **kwargs)
+            return 0.5*(M2U + M2V + M2W)
+        elif varname in ["GWCTKE", "GWCTKE_RES"] :
+            TKE, GWITKE = self.get_data(["TKE"+varname[6:], "GWITKE"], **kwargs)
+            return TKE - GWITKE
+        else :
+            raise(Exception(f"Unknown varname {varname} in Dom.calculate_GW"))
+    
     def compute_GW_carac_from_2DH(self, itime=("2020-05-17-11", "2020-05-17-17"), levels=300, display=False, savepath="", mask="GWMASK2") :
         kw_get = {
             "itime" : itime,
@@ -3082,6 +3098,29 @@ class Dom():
 ######  POST_PROCESS_LOW_LEVEL_JETS
 #################################################################################################################################
   
+    def calculate_LLJ(self, varname, **kwargs):
+        if varname.startswith("LLJ_"):
+            varname1 = varname[4:]
+            if self.get_dim(varname1) == 2:
+                print(f"warning in Dom.calculate_LLJ, return {varname}={varname1}")
+                return self.get_data(varname1, **kwargs)
+            LLJ_IZ, LLJ = self.get_data(["LLJ_IZ", "LLJ"], **kwargs)
+            new_kwargs = copy.deepcopy(kwargs)
+            izmax = self.nearest_z_index(1.2*500) #supposing manage_LLJ.max_heigth = 500 (LLJ core cannot be higher than 500 m) 
+            new_kwargs["crop"] =  ([0, izmax], kwargs["crop"][1], kwargs["crop"][2])
+            new_kwargs["saved"] = {}
+            var1 = self.get_data(varname1, **new_kwargs)
+            zaxis = self.find_axis("z", varname=varname1, **new_kwargs)
+            LLJ = np.expand_dims(LLJ, axis=zaxis).astype(int)
+            LLJ_IZ = np.expand_dims(LLJ_IZ, axis=zaxis).astype(int)
+            LLJ_IZ[LLJ!=1] = 0
+            print(var1.shape, LLJ.shape, LLJ_IZ.shape)
+            var = np.take_along_axis(var1, LLJ_IZ, axis=zaxis)
+            var[LLJ!=1] = np.nan
+            return var
+        else :
+            raise(Exception(f"Unknown varname {varname} in Dom.calculate_GW"))
+            
     
     def detect_LLJ1_1time(self, itime) :
         if debug : print("LLJ1(", itime, "), ", end="")
@@ -3089,18 +3128,18 @@ class Dom():
         MH = self.get_data("MH", itime=itime, saved=saved)
         WD = self.get_data("WD", itime=itime, saved=saved)
         Z = self.get_data("Z", itime=itime, saved=saved)
-        z_axis = 0
+        zaxis = 0
         NZ, NY, NX = MH.shape
 
         MH[np.where(Z>500)] = np.nan
 
-        k = np.nanargmax(MH, axis=z_axis)
-        k = np.expand_dims(k, axis=z_axis)
-        MH_LLJ = np.nanmax(MH, axis=z_axis)
-        Z_LLJ  = np.squeeze(np.take_along_axis(Z,  k, axis=z_axis), axis=z_axis)
-        WD_LLJ = np.squeeze(np.take_along_axis(WD, k, axis=z_axis), axis=z_axis)
+        k = np.nanargmax(MH, axis=zaxis)
+        k = np.expand_dims(k, axis=zaxis)
+        MH_LLJ = np.nanmax(MH, axis=zaxis)
+        Z_LLJ  = np.squeeze(np.take_along_axis(Z,  k, axis=zaxis), axis=zaxis)
+        WD_LLJ = np.squeeze(np.take_along_axis(WD, k, axis=zaxis), axis=zaxis)
 
-        Z_LLJ_dim = np.repeat(Z_LLJ[np.newaxis, :, :], NZ, axis=z_axis)
+        Z_LLJ_dim = np.repeat(Z_LLJ[np.newaxis, :, :], NZ, axis=zaxis)
         above = Z > Z_LLJ_dim
         below = Z < Z_LLJ_dim
         MH_above = copy.copy(MH)
@@ -3108,8 +3147,8 @@ class Dom():
         MH_above[below] = np.nan
         MH_below[above] = np.nan
 
-        MH_min1 = np.nanmin(MH_below, axis=z_axis)
-        MH_min2 = np.nanmin(MH_above, axis=z_axis)
+        MH_min1 = np.nanmin(MH_below, axis=zaxis)
+        MH_min2 = np.nanmin(MH_above, axis=zaxis)
         MH_min = np.maximum(MH_min1, MH_min2)   
         LLJ = np.logical_and(MH_LLJ- MH_min > 0.2, MH_LLJ/MH_min2 > 0.8)        
             
@@ -3220,11 +3259,11 @@ class Dom():
             
         open_at_the_end = False
         if not os.path.exists(filename):
-            print("creating postproc file : ", filename)
+            # print("creating postproc file : ", filename)
             init = True
             ncfout = Dataset(filename, mode="w", format='NETCDF4_CLASSIC')
         else :
-            print("opening file : ", filename)
+            # print("opening file : ", filename)
             init = False
             if filename in self.output_filenames["post"] and self.keep_open:
                 ncfout = self.output_filenames["post"][filename]

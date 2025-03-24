@@ -1536,6 +1536,28 @@ class Proj():
 #################################################################################################################################
 ######  Old forgotten methods
 ################################################################################################################################# 
+    def rename_postproc_variable(self, old_varname, new_varname):
+        """ Rename a variable in the netCDF postproc files of the domains
+        Parameters
+            self (Proj)
+            old_varname (string)
+            new_varname (string)
+        Mathieu LANDREAU 21/03/25
+        """
+        import netCDF4 as nc
+        for dom in self.tab_dom :
+            print("")
+            print(dom.name)
+            path_list = list(dom.output_filenames["post"].items())
+            for it in range(len(path_list)) :
+                print(it, end="")
+                path = path_list[it][0]
+                with nc.Dataset(path, mode="a") as file :
+                    if old_varname in file.variables :
+                        file.renameVariable(old_varname,new_varname)
+                        print("o", end=" ")
+                    else :
+                        print(".", end=" ")
 
     def display(self, pref = ""):
         """ Display itself

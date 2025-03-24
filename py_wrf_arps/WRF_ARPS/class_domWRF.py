@@ -871,7 +871,7 @@ class DomWRF(Dom):
                 M3 = p+M3
             return self.get_data(deriv+M3, **kwargs)
         
-        # Buoyancy : Bij = -[gj <ui'theta_v'> + gi <uj' theta_v'>]/theta_v
+        # Buoyancy : Bij = [gj <ui'theta_v'> + gi <uj' theta_v'>]/theta_v
         elif varname in ["BUW"] :
             PTV, COVUPTV = self.get_data(["PTV", p+"COVUPTV"], **kwargs)
             return constants.G/PTV * COVUPTV
