@@ -87,6 +87,7 @@ def angle_fit(x, y, return_beta=False) :
     Return
     an angle in degrees in [0, 360[ °
     """
+    import scipy.odr # need to import like this : https://stackoverflow.com/questions/13581593/attributeerror-module-object-scipy-has-no-attribute-misc
     x = np.array(x).flatten()
     y = np.array(y).flatten()
     def f(B, x):

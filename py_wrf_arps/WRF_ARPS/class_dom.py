@@ -793,6 +793,11 @@ class Dom():
         ZP_data = self.get_data(ZP, time_slice=time_slice_ZP, crop=crop_ZP, saved={})
         ZP_max = np.min(ZP_data[-1])
         ZP_min = np.min(ZP_data[0])
+        if ZP_max < ZP_min :
+            temp = ZP_max
+            ZP_max = ZP_min
+            ZP_min = temp
+            descending = True
         cropz, levels = self.get_cropz_for_interp(levels, ZP_max, ZP_min, ZP_data, ZP_min, 20000)
         crop_data = (cropz, "ALL", "ALL") if crop is None else (cropz, crop[-2], crop[-1])
         
@@ -805,6 +810,9 @@ class Dom():
         var_data = self.get_data(varname, crop=crop_data, saved=saved["before_hinterp"], **kw_get)
         #it is better to interpolate logP than P
         if self.is_Pressure(varname) : var_data = np.log(var_data)
+        if self.is_Pressure(ZP) : 
+            ZP_data = np.log(ZP_data)
+            levels = np.log(levels)
             
         #I don't know why but it doesn't work if shape_y = 1
         shape_y = ZP_data.shape[-2]
@@ -1056,7 +1064,7 @@ class Dom():
         else : #Yes
             if axis == "t" : return 0
             count_dim += 1
-        crop = self.prepare_crop_for_get(crop, varname) #when find_axis is called in Dom.calculate, this shouldn't be necessary
+        if varname is not None: crop = self.prepare_crop_for_get(crop, varname) #when find_axis is called in Dom.calculate, this shouldn't be necessary
         cropz, cropy, cropx = crop
         # cropz can be int or list
         # is there a z dimension ?
@@ -1099,12 +1107,12 @@ class Dom():
             or (varname.startswith("GW") and (varname.endswith("LAM") or varname.endswith("LAMM") or varname.endswith("DIR") or varname.endswith("S")
                                               or varname.endswith("SM") or varname.endswith("D"))) :
             return 0
-        elif varname in ["GWM2R", "GWM2L", "GWM2D"] or varname.startswith("GWMASK") or varname.startswith("LLJ_"):
+        elif varname in ["GWM2R", "GWM2L", "GWM2D", "SBZC", "LBZC", "CIBLZC", "SIBLZC"] or varname.startswith("GWMASK") or varname.startswith("LLJ_"):
             return 2
         else : 
             varname2 = self.find_similar_variable(varname)
             if varname2 is None :
-                print(self.prefix, "warning in Dom.find_dim : ", varname, " not in self.VARIABLES, cannot find the dimension, assuming 3")
+                print(self.prefix, "warning in Dom.get_dim : ", varname, " not in self.VARIABLES, cannot find the dimension, assuming 3")
                 return 3
             else :
                 return self.get_dim(varname2)
@@ -1409,7 +1417,7 @@ class Dom():
         elif varname in ["WD180", "WDS180", "WDAS180"]: #Wind direction in degrees [-180, 180], S=synoptic, AS=deviation from S
             WD = self.get_data(varname[:-3], **kwargs)
             return manage_angle.angle180(WD)
-        elif varname in ["US", "VS", "PS"]: #synoptic Velocites and Pressure
+        elif varname in ["US", "VS", "PS", "PSLS"]: #synoptic Velocites, Pressure, and surface pressure
             TIME = self.get_data("TIME", **kwargs)
             date = manage_time.to_day(TIME)
             if type(date) == datetime.datetime :
@@ -1430,12 +1438,14 @@ class Dom():
                             "levels" : 3000, #I arbitrary chose a height of 3000m above SEA level.
                             "ZP" : "ZP", #geopotential height is necessary
                         }
+                    elif varname == "PSLS" :
+                        new_kwargs["crop"] = (0, "ALL", "ALL")
                     else :
                         new_kwargs["hinterp"] = {
-                            "levels" : 3000, #I arbitrary chose a height of 3000m above GROUND level.
+                            "levels" : 2000, #I arbitrary chose a height of 3000m above GROUND level.
                             "ZP" : "Z",
                         }
-                    var = self.get_data(varname[0], **new_kwargs)
+                    var = self.get_data(varname[:-1], **new_kwargs)
                     var = np.mean(var, axis=0)
                     cmap = self.VARIABLES[varname[:-1]].cmap
                     latex_units = self.VARIABLES[varname[:-1]].latex_units
@@ -1658,7 +1668,7 @@ class Dom():
             if not varname+sigma_str in self.VARIABLES : 
                 LANDMASK = self.get_data("LANDMASK")
                 DX = self.get_data("DX")
-                LANDMASK_SIGMA = get_LANDMASK_SIGMA(LANDMASK, DX=DX, sigma=sigma*1000)
+                LANDMASK_SIGMA = manage_images.get_LANDMASK_SIGMA(LANDMASK, DX=DX, sigma=sigma*1000)
                 cmap = self.get_cmap("LANDMASK")
                 self.VARIABLES["LANDMASK_SIGMA"+sigma_str] = VariableSave("Blurred land mask", "Blurred land mask", "", "", 2, LANDMASK_SIGMA, cmap=cmap)
             return self.get_data(varname+sigma_str, **kwargs) #call again get data, if ever there is a crop, it will be done in VariableSave
@@ -1699,6 +1709,22 @@ class Dom():
             CC_U = self.get_data("CC_U", **new_kwargs)
             zaxis = self.find_axis("z", dim=3, **new_kwargs)
             return self.get_Z_SB_LB(CC_U, Z, typ=varname[-2:], zaxis=zaxis)
+        elif varname in ["SBZC", "LBZC", "CIBLZC", "SIBLZC"] :
+            crop = kwargs["crop"]
+            if crop[0] in ["ALL", [0, self.get_data("NZ")]] and kwargs["hinterp"] is None :
+                new_kwargs = kwargs
+            else :
+                new_kwargs = copy.deepcopy(kwargs)
+                new_kwargs["crop"] = ("ALL", crop[1], crop[2]) 
+                new_kwargs["hinterp"] = None
+            Z = self.get_data("Z", **new_kwargs)
+            zaxis = self.find_axis("z", dim=3, **new_kwargs)
+            if varname in ["SBZC", "LBZC"] :
+                AD225_U = self.get_data("AD225_U", **new_kwargs)
+                return self.get_Z_SB_LB(AD225_U, Z, typ=varname[-2:], zaxis=zaxis)
+            elif varname in ["CIBLZC", "SIBLZC"]:
+                RI = self.get_data("RI", **new_kwargs)
+                return self.get_Z_TIBL(RI, Z, typ=varname[:4], zaxis=zaxis)
         elif varname == "T_STAR" :
             kwargs_sfc = copy.deepcopy(kwargs)
             if "crop" in kwargs :
@@ -2472,9 +2498,9 @@ class Dom():
         Optional
             typ : str : "SB" or "LB" for land or sea breeze height
             zaxis : if CC_U is more than 1D, we need to know which axis correspond to "z"
-            ZPBL : float, int or np.array, same dimension as WD and Z : if Z is present, only the points below ZPBL are used, default : 3000m
+            ZPBL : float, int or np.array, same dimension as WD and Z : if Z is present, only the points below ZPBL are used, default : 2000m
         Returns 
-            Z_SB : np.array of N-1 dimension : the z dimension is squeezed, there is a single value of Z_SB or Z_LB per column
+            Z_SB : np.array of N dimension
         """
         SBS = self.get_BS(CC_U, typ=typ+"S", zaxis=zaxis, Z=Z, ZPBL=ZPBL)
         Z_SB = np.nanargmin(CC_U>0, axis=zaxis)
@@ -2487,6 +2513,34 @@ class Dom():
         # Z_SB = np.squeeze(Z_SB, axis=zaxis)
         Z_SB[np.logical_or(np.isnan(SBS), SBS==0)] = np.nan
         return Z_SB
+    
+    def get_Z_TIBL(self, RI, Z, typ="CIBL", zaxis=0, ZPBL=2000) :
+        """
+        Description
+            Calculate TIBL height from Richardson profile (height at which Ri=0) 
+        Parameters
+            RI : np.array of N dimension : the Richardson profile
+            Z : np.array of N dimension : Height above ground in meters
+        Optional
+            typ : str : "CIBL" or "SIBL" for convective or stable TIBL height, respectively
+            zaxis : if RI is more than 1D, we need to know which axis correspond to "z"
+            ZPBL : float, int or np.array, same dimension as WD and Z : if Z is present, only the points below ZPBL are used, default : 2000m
+        Returns 
+            TIBLZ : np.array of N dimension
+        """
+        if typ == "SIBL" :
+            TIBLIZ = np.nanargmin(RI>0, axis=zaxis)
+        else :
+            TIBLIZ = np.nanargmin(RI<0, axis=zaxis)
+        TIBLIZ = np.expand_dims(TIBLIZ, axis=zaxis)
+        TIBLZ0 = np.take_along_axis(Z, TIBLIZ-1, axis=zaxis)
+        TIBLZ1 = np.take_along_axis(Z, TIBLIZ, axis=zaxis)
+        RI0 = np.take_along_axis(RI, TIBLIZ-1, axis=zaxis)
+        RI1 = np.take_along_axis(RI, TIBLIZ, axis=zaxis)
+        TIBLZ = -RI1 * ((TIBLZ0 - TIBLZ1)/(RI0 - RI1)) + TIBLZ1
+        # Z_SB = np.squeeze(Z_SB, axis=zaxis)
+        TIBLZ[TIBLIZ==0] = 0
+        return TIBLZ
     
     def detect_SB1(self, dic={}) :
         print("detect SB1")
@@ -3099,7 +3153,9 @@ class Dom():
 #################################################################################################################################
   
     def calculate_LLJ(self, varname, **kwargs):
-        if varname.startswith("LLJ_"):
+        if varname in ["LLJ_MIN"]:
+            return self.get_data("LLJ_MH", **kwargs) - self.get_data("LLJ_PROM", **kwargs)
+        elif varname.startswith("LLJ_"):
             varname1 = varname[4:]
             if self.get_dim(varname1) == 2:
                 print(f"warning in Dom.calculate_LLJ, return {varname}={varname1}")

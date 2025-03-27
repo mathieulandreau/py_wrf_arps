@@ -1,5 +1,5 @@
 from ..default_params import default_params
-from ..lib import manage_angle, manage_dict, manage_time
+from ..lib import manage_angle, manage_dict, manage_time, manage_list
 
 import warnings
 import matplotlib.pyplot as plt
@@ -315,23 +315,24 @@ def ax_plot(ax, **params):
         print("error in manage_plot.ax_plot : unknown type of plot ("+typename+"), cannot plot anything")
     if not "plot_obj" in params :
         if "title" in params : ax.set_title(params["title"])
-        if "xlim" in params : ax.set_xlim(params["xlim"])
-        if "ylim" in params : ax.set_ylim(params["ylim"])
         if "xlabel" in params : ax.set_xlabel(params["xlabel"])
         if "ylabel" in params : ax.set_ylabel(params["ylabel"])
         if "xscale" in params : ax.set_xscale(params["xscale"])
         if "yscale" in params : ax.set_yscale(params["yscale"])
-        if "yticks" in params : ax.set_yticks(params["yticks"])
         if "yticklabels" in params : ax.set_yticklabels(params["yticklabels"])
         if "xticklabels" in params : ax.set_xticklabels(params["xticklabels"])
         if "xticks" in params : 
-            ax.set_xticks(params["xticks"])
-            # if type(np.array(params["X"]).item(0)) is datetime.datetime: 
-            #     ax.xaxis.set_major_formatter(dtFmt) 
-            #     if "xticklabels" in params : 
-            #         ax.set_xticklabels(params["xticklabels"], rotation=45, ha="right")
-            #     else :
-            #         ax.set_xticklabels(params["xticks"], rotation=45, ha="right")
+            if manage_list.is_iterable(params["xticks"]) : ax.set_xticks(params["xticks"])
+            else : ax.xaxis.set_major_locator(matplotlib.ticker.MultipleLocator(params["xticks"]))
+        if "yticks" in params : 
+            if manage_list.is_iterable(params["yticks"]) : ax.set_yticks(params["yticks"])
+            else : ax.yaxis.set_major_locator(matplotlib.ticker.MultipleLocator(params["yticks"]))
+        if "minorxticks" in params : 
+            if manage_list.is_iterable(params["minorxticks"]) : ax.set_xticks(params["minorxticks"], minor=True)
+            else : ax.xaxis.set_minor_locator(matplotlib.ticker.MultipleLocator(params["minorxticks"]))
+        if "minoryticks" in params : 
+            if manage_list.is_iterable(params["minoryticks"]) : ax.set_yticks(params["minoryticks"], minor=True)
+            else : ax.yaxis.set_minor_locator(matplotlib.ticker.MultipleLocator(params["minoryticks"]))
         if "label" in params :
             loc = manage_dict.getp("legend_loc", params, "best")
             ax.legend(loc=loc)
@@ -339,6 +340,14 @@ def ax_plot(ax, **params):
             grid_axis = manage_dict.getp("grid_axis", params, default="both")
             grid_which = manage_dict.getp("grid_which", params, default="major")
             ax.grid(params["grid"], axis=grid_axis, which=grid_which)
+            if grid_which == "both" :
+                ax.grid(params["grid"], axis=grid_axis, which="major")
+                ax.grid(params["grid"], axis=grid_axis, which="minor", alpha=0.3)
+            else :
+                ax.grid(params["grid"], axis=grid_axis, which=grid_which)
+        if "xlim" in params : ax.set_xlim(params["xlim"])
+        if "ylim" in params : ax.set_ylim(params["ylim"])
+                
     return plot_obj
 
 def ax_1D_plot(ax, X, Y, style='-', label=None, plot_obj=None, it=None, animate=False, kwargs_plt={}, **kwargs):
