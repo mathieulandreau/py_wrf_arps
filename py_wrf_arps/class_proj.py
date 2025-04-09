@@ -565,10 +565,14 @@ class Proj():
             #if same==True, copy all the parameters of the last plot
             #if same==-2, copy all the parameters of the second last plot, ...
             if "same" in params :
-                if params["same"] == True and i_params > 0 : 
+                if type(params["same"]) is int : 
+                    if (params["same"] < 0): #ex : -1
+                        params = manage_dict.select_params(params, params_list[i_params+params["same"]], depth=0) 
+                    else:
+                        params = manage_dict.select_params(params, params_list[params["same"]], depth=0) 
+                elif params["same"] == True and i_params > 0 : 
                     params = manage_dict.select_params(params, params_list[i_params-1], depth=0) 
-                if type(params["same"]) is int and i_params >= -params["same"] : 
-                    params = manage_dict.select_params(params, params_list[i_params+params["same"]], depth=0) 
+                        
         
         for i_params, params in enumerate(params_list) :       
             #Default type is 1D
@@ -947,10 +951,13 @@ class Proj():
                 if not "where" in params :
                     params["where"] = manage_time.is_nighttime(params["X"], params["locInfo"])
             elif typename == "LANDSEA":
-                if params["X"].ndim == 2 :
-                    params["X"] = params["X"][0]
                 if not "where" in params :
                     params["where"] = self.get_data(dom, "LANDMASK", **kwargs_get_data)
+                if params["X"].ndim == 2 :
+                    if "axis" in params : 
+                        params["X"] = params["X"][params["axis"]]
+                    else :
+                        params["X"] = params["X"][0]
             if params["video"] != False :
                 if not "NT" in params :
                     if i_params>0 and params["same_ax"] and "NT" in params_list[i_params-1]:

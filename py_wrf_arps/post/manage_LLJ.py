@@ -1,18 +1,10 @@
-from ..class_proj import Proj
-from ..WRF_ARPS import Dom
-from ..lib import manage_list
-
 import numpy as np
 import scipy
-import os
-# I don't understand why it didn't work with multiprocessing.Pool, I found the solution at:
-# https://stackoverflow.com/questions/8804830/python-multiprocessing-picklingerror-cant-pickle-type-function
-from multiprocessing.pool import ThreadPool as Pool
 
-def peak_prominences_widths(row, peaks):
-    prominences, left_bases, right_bases = scipy.signal.peak_prominences(row, peaks)
-    widths, _, _, _ = scipy.signal.peak_widths(row, peaks, prominence_data=(prominences, left_bases, right_bases))
-    return prominences, widths
+def peak_prominences_widths(MH, IZ):
+    prominences, left_bases, right_bases = scipy.signal.peak_prominences(MH, IZ)
+    widths, _, left_ips, right_ips = scipy.signal.peak_widths(MH, IZ, prominence_data=(prominences, left_bases, right_bases))
+    return prominences, widths, left_ips, right_ips
 
 def detect_LLJ(MH_in, Z_in, IZ_in, DZ_in, zaxis, max_height=500, prom_abs=2, prom_rel=0.2, width=50, squeeze=False) :
     """ Detect the presence of LLJ by searching a peak in the wind speed profile below max_height meters, and return the core speed, height, and vertical index
@@ -47,8 +39,11 @@ def detect_LLJ(MH_in, Z_in, IZ_in, DZ_in, zaxis, max_height=500, prom_abs=2, pro
     
     # Roughly step 1 and 2 from Visich and Conan, 2025
     temp = np.apply_along_axis(peak_prominences_widths, zaxis, MH, IZ)
-    PROM, WIDTH = np.take(temp, 0, axis=zaxis), np.take(temp, 1, axis=zaxis)
-    WIDTH = WIDTH*DZ
+    PROM, IZ0, IZ1 = np.take(temp, 0, axis=zaxis), np.take(temp, 2, axis=zaxis), np.take(temp, 3, axis=zaxis)
+    temp = np.apply_along_axis(peak_prominences_widths, zaxis, MH, IZ)
+    IZ_to_Z = scipy.interpolate.interp1d(IZ, Z, axis=zaxis)
+    Z0, Z1 = interpolate_along_axis(Z, IZ0, axis=zaxis), interpolate_along_axis(Z, IZ1, axis=zaxis)
+    WIDTH = Z1 - Z0 #np.expand_dims(Z1 - Z0, axis=zaxis)
     m1 = 1*np.logical_or(PROM>=prom_abs, np.logical_and(PROM>=prom_rel*MH, PROM>=1)) # Roughly equivalent to their step 2
     m2 = 1*(WIDTH>=width)
     m3 = 1*(Z<=max_height)
@@ -77,70 +72,39 @@ def detect_LLJ(MH_in, Z_in, IZ_in, DZ_in, zaxis, max_height=500, prom_abs=2, pro
         LLJ_WIDTH = np.squeeze(LLJ_WIDTH)
     return LLJ, LLJ_IZ, LLJ_Z, LLJ_MH, LLJ_PROM, LLJ_WIDTH
 
-class LLJ(): 
-    def __init__(self, sim):
-        """ compute LLJ characteristics and save in post proc files
-        Parameters
-            self (LLJ)
-            sim: a class_Proj object
-        20/03/2025 : Mathieu Landreau
-        """  
-        self.sim = sim
-        
-    def detect_LLJ(self, dom, max_height=500, prom_abs=2, prom_rel=0.2, width=50, DX_smooth_rel=10, DX_smooth=None, **kw_get):
-        """ Get data and call detect_LLJ (defined outside the class)
-        Parameters
-            self (LLJ)
-            dom: see classProj.Proj.get_dom
-        Optional
-            max_height, prom_abs, prom_rel, width: see detect_LLJ
-            DX_smooth_rel (float): if DX_smooth is None, it takes the value of DX_smooth_rel*DX_KM
-            kw_get (dict): see Dom.get_data
-        20/03/2025 : Mathieu Landreau
-        """ 
-        if DX_smooth is None and DX_smooth_rel is not None:
-            DX_KM = self.sim.get_data(dom, "DX")/1000
-            DX_smooth = DX_smooth_rel*DX_KM
-        MH, Z, IZ, DZ = self.sim.get_data(dom, ["MH", "Z", "iz", "DZ"], DX_smooth=DX_smooth, **kw_get)
-        zaxis = self.sim.get_dom(dom).find_axis("z", varname="MH", **kw_get)
-        return detect_LLJ(MH, Z, IZ, DZ, zaxis, max_height, prom_abs, prom_rel, width)
-    
-    def write_postproc_1time(self, it, dom, dry, crop, kw):
-        print(it, end=" ")
-        if not dry :
-            LLJ, LLJ_IZ, LLJ_Z, LLJ_MH, LLJ_PROM, LLJ_WIDTH = self.detect_LLJ(dom, itime=it, crop=crop, **kw)
-            dom.write_postproc("LLJ", LLJ, ('y', 'x'), itime=it, long_name="LLJ detection", standard_name="LLJ", units="", latex_units="", typ=np.int64)  
-            dom.write_postproc("LLJ_IZ", LLJ_IZ, ('y', 'x'), itime=it, long_name="LLJ core index", standard_name="LLJ_IZ", units="", latex_units="", typ=np.int64) 
-            dom.write_postproc("LLJ_Z", LLJ_Z, ('y', 'x'), itime=it, long_name="LLJ core height", standard_name="LLJ_Z", units="m", latex_units="m", typ=np.float32) 
-            dom.write_postproc("LLJ_MH", LLJ_MH, ('y', 'x'), itime=it, long_name="LLJ core speed", standard_name="LLJ_MH", units="m.s-1", latex_units="m.s^{-1}", typ=np.float32) 
-            dom.write_postproc("LLJ_PROM", LLJ_PROM, ('y', 'x'), itime=it, long_name="LLJ peak prominence", standard_name="LLJ_PROM", units="m.s-1", latex_units="m.s^{-1}", typ=np.float32) 
-            dom.write_postproc("LLJ_WIDTH", LLJ_WIDTH, ('y', 'x'), itime=it, long_name="LLJ peak width", standard_name="LLJ_WIDTH", units="m", latex_units="m", typ=np.float32) 
-                
-    
-    def write_postproc(self, dom, itime="ALL_TIMES", nprocs=1, crop=None, max_height=500, dry=False, **kw):
-        """ Save the results in the postproc file
-        Parameters
-            self (LLJ)
-        Optional
-            savepath (str): path to save the pickle file
-        04/03/2025 : Mathieu Landreau
-        """ 
-        dom = self.sim.get_dom(dom)
-        if dom.software in ["AROME"]: raise(Exception("Cannot write postproc with this kind of domain: ", dom.software))
-        if crop is None:
-            izmax = dom.nearest_z_index(1.2*max_height)
-            crop = ([0, izmax], "ALL", "ALL")
-        IT, TIME = dom.get_data(["it", "TIME"], itime=itime)
-        
-        # self.temp_args = (dom, dry, crop, kw)
-        if not manage_list.is_iterable(IT):
-            IT = [IT]
-        NT = len(IT)
-        if nprocs > 1 :
-            inputs = [(it, dom, dry, crop, kw) for it in IT]
-            with Pool(processes=nprocs) as pool:
-                pool.starmap(self.write_postproc_1time, inputs)
-        else :
-            for it in IT :
-                self.write_postproc_1time(it, dom, dry, crop, kw)
-    
+def interpolate_along_axis(data, indices, axis=0):
+    """ Interpolate values in `data` along a given axis using fractional indices in `indices`.
+    Author 
+        ChatGPT-4-turbo
+    Parameters
+        data (np.ndarray): N-dimensional array of real values.
+        indices (np.ndarray): Array of fractional indices (same shape as data) indicating where to interpolate.
+        axis (int): Axis along which to interpolate.
+    Returns
+        interpolated (np.ndarray): Interpolated array (same shape as data).
+    """
+    data = np.asarray(data)
+    indices = np.asarray(indices)
+    # Ensure indices match shape
+    if data.shape != indices.shape:
+        raise ValueError("`indices` must have the same shape as `data`.")
+    shape = data.shape
+    ndim = data.ndim
+    size_axis = shape[axis]
+    # Clip indices to be within valid range for interpolation
+    i0 = np.floor(indices).astype(int)
+    i1 = i0 + 1
+    i0 = np.clip(i0, 0, size_axis - 1)
+    i1 = np.clip(i1, 0, size_axis - 1)
+    w = indices - i0  # interpolation weights
+    # Build indexing arrays
+    slicer = [np.arange(s) for s in shape]
+    grids = np.meshgrid(*slicer, indexing='ij')
+    # Replace the axis-th dimension with i0 and i1
+    idx0 = list(grids)
+    idx1 = list(grids)
+    idx0[axis] = i0
+    idx1[axis] = i1
+    val0 = data[tuple(idx0)]
+    val1 = data[tuple(idx1)]
+    return (1 - w) * val0 + w * val1

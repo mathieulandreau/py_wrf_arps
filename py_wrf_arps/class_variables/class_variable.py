@@ -127,12 +127,14 @@ class Variable():
     def get_units(self, latex=True) :
         return manage_display.get_units(self.units, latex=latex)
     
-    def get_legend(self, long=False, latex=True):
+    def get_legend(self, units=None, long=False, latex=True):
+        if units is None :
+            units = self.units
         if not long :
             legend = self.legend_short
         else:
             legend = self.legend_long
-        return manage_display.get_legend(legend, self.units, latex=latex)
+        return manage_display.get_legend(legend, units, latex=latex)
     
     def get_cmap(self) : 
         return self.cmap

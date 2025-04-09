@@ -1047,7 +1047,7 @@ class DomWRF(Dom):
                 return DYW_var - DYW_ZP*DETA_var/DETA_ZP
             
         #X derivative in cartesian referential frame (t, x, y, z)
-        elif varname.startswith("DXC_") : #HERE?
+        elif varname.startswith("DXC_") :
             varname2 = varname[4:]
             DXW_var = self.get_data("DXW_"+varname2, **kwargs)
             if self.get_dim(varname2) < 3 : 
@@ -1058,7 +1058,6 @@ class DomWRF(Dom):
                 DETA_var = self.get_data("DETA_"+varname2, **kwargs)
                 if debug : print(self.prefix, "DXC", DXW_var.shape, DXW_ZP.shape, DETA_var.shape, DETA_ZP.shape)
                 return DXW_var - DXW_ZP*DETA_var/DETA_ZP
-        
         
         #call mother class Dom.calculate_derivative
         else : 

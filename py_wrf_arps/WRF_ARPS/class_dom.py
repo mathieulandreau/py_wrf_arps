@@ -354,13 +354,13 @@ class Dom():
 #################################################################################################################################
 ######  Get data 
 #################################################################################################################################  
-    def get_data(self, varname, itime = None, time_slice = None, crop = None, zoom=None, i_unstag = None, hinterp=None, vinterp=None, DX_smooth=None, n_procs=1, avg=None, avg_time=None, avg_area=None, sigma=50, squeeze=True, avg_stats=True, avg_deriv=True, saved=None, save=True, print_level=0):
+    def get_data(self, varname, itime = None, time_slice = None, crop = None, zoom=None, i_unstag = None, hinterp=None, vinterp=None, DX_smooth=None, n_procs=1, avg=None, avg_time=None, avg_area=None, sigma=50, squeeze=True, avg_stats=True, avg_deriv=True, saved=None, save=True, print_level=0, return_val=True):
         """
         Description
             Get data thanks to variable name and time
         Parameters
             self : Dom
-            varname : str (or list, array, tuple of str) : name of the variable(s) 
+            varname (str, or list, array, tuple of str) : name of the variable(s) 
             ----
             varname must be present in self.VARIABLES
             There are different kind of variables :
@@ -376,9 +376,9 @@ class Dom():
             - raw  : not defined in ARPS_WRF_VARNAMES.py but found during init_raw_variables. The very basic info are stored in the object VariableRead
                      It is read the same way than the variables read
         Optional
-            time_slice : slice : slice of the TIME vector required
-                         int : index of the TIME vector required
-                         list : list of required indices
+            time_slice (slice) : slice of the TIME vector required
+                       (int) : index of the TIME vector required
+                       (list) : list of required indices
                             Note : if time_slice is not given, it is built from itime
             itime : date to construct time_slice thanks to the method manage_time.get_time_slice, can be of type :
                 datetime.datetime : a single date 
@@ -395,19 +395,19 @@ class Dom():
                 *Note : if hinterp or vinterp are defined, or if the variable is 2D cropz has no impact*
                 *Note : if vinterp or zoom is defined, cropy and cropx have no impact"
             zoom : something to determine cropy and cropx, see Dom.get_zoom_index, and Proj.get_zoom_index
-            i_unstag : int : which dimension will be unstaggered in Variable.get_data, in practice, it is not useful for the user
-            hinterp : dict : allow the horizontal cross section to a given level or several levels, see hinterp
-            vinterp : dict : allow the vertical cross section at selected levels, see vinterp
-            DX_smooth : float : apply a 2D horizontal gaussian filter on the desired variable, DX_smooth is the kernel size in kilometers
-            n_procs : number of procs used to read the data, it is not recommended to set higher than 1 for netcdf files. It is useful for AROME grib files
-            avg : boolean : True if you want averaged variables output. If ever in your output files you have W and W_AVG, it will take W_AVG. This is not well done. This has been used because in first version, I didn't have averaged values but then I implemented the average calculation in WRF so the available variables have changed. The logic of self.calculate and DomWRF.calculate have changed.
-            avg_time : float : The variable is averaged over avg_time for each required timestep. avg_time must be a multiple of dt_hist. The behavior depends on avg_stats, avg_deriv
-            avg_area : if defined, the variable is averaged over the desired area, that should be a rectangle. avg_area can be any type accepted by zoom. Once again
-            avg_stats : 
+            i_unstag (int) : which dimension will be unstaggered in Variable.get_data, in practice, it is not useful for the user
+            hinterp (dict) : allow the horizontal cross section to a given level or several levels, see hinterp
+            vinterp (dict) : allow the vertical cross section at selected levels, see vinterp
+            DX_smooth (float) : apply a 2D horizontal gaussian filter on the desired variable, DX_smooth is the kernel size in kilometers
+            n_procs (int): number of procs used to read the data, it is not recommended to set higher than 1 for netcdf files. It is useful for AROME grib files
+            avg (boolean) : True if you want averaged variables output. If ever in your output files you have W and W_AVG, it will take W_AVG. This is not well done. This has been used because in first version, I didn't have averaged values but then I implemented the average calculation in WRF so the available variables have changed. The logic of self.calculate and DomWRF.calculate have changed.
+            avg_time (float) : The variable is averaged over avg_time for each required timestep. avg_time must be a multiple of dt_hist. The behavior depends on avg_stats, avg_deriv
+            avg_area (see Dom.get_rectangle): if defined, the variable is averaged over the desired area, that should be a rectangle. avg_area can be any type accepted by zoom. Once again
+            avg_stats (boolean): 
                 if True : The time_avg is not computed on the output variable but on variables named XX_AVG read in output files. Therefore, the covariances are not averaged but the 1st and 2nd order non-centered moments are averaged. The derivatives are not averaged as well but are computed from averaged variables, ...
                           The avg_area, dx_smooth, 
-            sigma : float : kernel size in kilometer for landmask, coast orientation, ... It is used in sea-breeze and cross-coast velocities, ...
-            squeeze : boolean : if True, the dimensions of size 1 are squeezed. Default is True
+            sigma (float) : kernel size in kilometer for landmask, coast orientation, ... It is used in sea-breeze and cross-coast velocities, ...
+            squeeze (boolean) : if True, the dimensions of size 1 are squeezed. Default is True
             saved : dict : Saved can help to save a lot of time. Every intermediate variable used in the calculation is saved in this dictionary. If a dictionary is passed as argument out of the function, the user can have access to these variable. In the following example, since U and V are needed to calculate both MH and WD, the calculation of WD will be faster with saved :
                 ```
                     saved = {}
@@ -423,6 +423,8 @@ class Dom():
                     WD3 = dom.get_data("WD", itime="2020-05-17", crop=("ALL", 10, 12))
                 ```
             save : If save is set to False, the intermediate variables are not saved at all. The calculation might be (sometimes a lot) longer but it saves some space.
+            print_level (int): if print_level > 0 it will print how it gets the variable, if print_level > 1, it will also print how it gets the variables needed to calculate the final variable, ...
+            return_val (boolean): if False returns nothing, but the results can still be saved in "saved"
         Output 
             data : the data expected, can be a float or a numpy array, shape order is (NT, NZ, NY, NX)
                     
@@ -439,10 +441,10 @@ class Dom():
                 if debug or print_this : print(self.prefix, "saved", varname)
                 if squeeze and type(saved[varname]) in [np.array, np.ndarray, list, np.ma.core.MaskedArray]:
                     self.prefix = self.prefix[1:]
-                    return np.squeeze(np.array(saved[varname]))
+                    return np.squeeze(np.array(saved[varname])) if return_val else None
                 else :
                     self.prefix = self.prefix[1:]
-                    return saved[varname]
+                    return saved[varname] if return_val else None
             if zoom is not None :
                 iy1, iy2, ix1, ix2  = self.get_zoom_index(zoom)
                 if crop is None : 
@@ -460,13 +462,13 @@ class Dom():
             
             if varname == "TIME":
                 self.prefix = self.prefix[1:]
-                return self.date_list[time_slice]
+                return self.date_list[time_slice] if return_val else None
             if varname == "TIME_STATS":
                 self.prefix = self.prefix[1:]
-                return self.date_list_stats[time_slice]
+                return self.date_list_stats[time_slice] if return_val else None
             
             # for WD or COV or ... , it is better to interpolate or average other quantities and then calculate, so we skip this now and go to calculate first
-            avg_before = (varname.startswith("WD") or varname.startswith("MH") or varname.startswith("SCORER") or self.is_statistics(varname, avg_stats) or self.is_vectorial(varname) or varname in ["DGWRDT", "GAMMA", "it", "iz", "iy", "ix"])
+            avg_before = (varname.startswith("WD") or varname.startswith("MH") or varname.startswith("SCORER") or self.is_statistics(varname, avg_stats) or self.is_vectorial(varname) or varname.upper() in ["DGWRDT", "GAMMA", "IT", "IZ", "IY", "IX"])
             interp_before = avg_before or varname.startswith("X2DV")
             smooth_before = interp_before or ("TIME" in varname or varname in ["X", "Y", "LON", "LAT"] or varname[:2] in ["DX", "DY"] \
                              or "LANDMASK" in varname or "COASTDIST" in varname or varname[:3] in ["COR", "CGX", "CGY", "CDI"]\
@@ -504,22 +506,21 @@ class Dom():
             else :
                 if debug or print_this : print(self.prefix, "variable", varname)
                 data = self.VARIABLES[varname].get_data(time_slice, crop, i_unstag, n_procs=n_procs)
-            # Get saved variable
+           
+            # Save the variable
             if save : saved[varname] = data
-            
             # Squeeze at the end
             if squeeze and type(data) in [np.array, np.ndarray, list, np.ma.core.MaskedArray]:
                 data = np.squeeze(np.array(data))
-            
             self.prefix = self.prefix[1:]
-            return data 
+            return data if return_val else None
         
         # If several variables, call get data for each
         elif type(varname) in (list, tuple, np.array, np.ndarray) :
             out = ()
             for varname_i in varname :
-                out = out + (self.get_data(varname_i, itime=itime, time_slice=time_slice, crop=crop, zoom=zoom, i_unstag=i_unstag, hinterp=hinterp, vinterp=vinterp, DX_smooth=DX_smooth, n_procs=n_procs, avg=avg, avg_time=avg_time, avg_area=avg_area, sigma=sigma, squeeze=np.copy(squeeze), avg_stats=avg_stats, avg_deriv=avg_deriv, saved=saved, save=save, print_level=print_level),)
-            return out
+                out = out + (self.get_data(varname_i, itime=itime, time_slice=time_slice, crop=crop, zoom=zoom, i_unstag=i_unstag, hinterp=hinterp, vinterp=vinterp, DX_smooth=DX_smooth, n_procs=n_procs, avg=avg, avg_time=avg_time, avg_area=avg_area, sigma=sigma, squeeze=np.copy(squeeze), avg_stats=avg_stats, avg_deriv=avg_deriv, saved=saved, save=save, print_level=print_level, return_val=return_val),)
+            return out if return_val else None
         else :
             raise(Exception("error, unknown type for varname in Dom.get_data : " + str(type(varname)) + ", varname = " + varname))
     
@@ -1028,7 +1029,10 @@ class Dom():
             boolean : True if stress tensor bilan term variable, False otherwise, ex : PUU, PVW, AUU1, ...
         25/03/2024 : Mathieu LANDREAU
         """
-        return varname[0] in ["P", "A", "T", "D", "B"] and (varname[1:4] == "TKE" or (varname[1] in ["U", "V", "W"] and varname[2] in ["U", "V", "W"]))
+        return varname[0] in ["P", "A", "T", "D", "B"] and (
+                len(varname) >= 4 and varname[1:4] == "TKE" or 
+                (len(varname) >= 3 and (varname[1] in ["U", "V", "W"] and varname[2] in ["U", "V", "W"]))
+        )
         
     def find_axis(self, axis, dim=None, varname=None, time_slice=None, crop=None, i_unstag=None, itime=None, **kwargs):
         """
@@ -1132,9 +1136,9 @@ class Dom():
         """
         if varname[:3] in ["DZ_", "CC_"] : 
             return varname[3:]
-        elif varname[:4] in ["DXC_", "DXW_", "DYC_", "DYW_", "DIV_", "ROT_", "DCC_", "DIR_", "DTW_", "DTC_", "LLJ_"] : 
+        elif varname[:4] in ["DXC_", "DXW_", "DYC_", "DYW_", "DIV_", "ROT_", "DCC_", "DIR_", "DTW_", "DTC_", "LLJ_", "LOG_", "EXP_"] : 
             return varname[4:]
-        elif varname[:5] in ["DETA_", "GRAD_", "NORM_", "GWM2_", "GWM4_"] : 
+        elif varname[:5] in ["DETA_", "GRAD_", "NORM_", "GWM2_", "GWM4_", "SQRT_"] : 
             return varname[5:]
         elif varname[:4] in ["GRAD"] and varname[5] == "_" : 
             return varname[6:]
@@ -1346,7 +1350,7 @@ class Dom():
             return self.VARIABLES[varname].get_legend(*args, **kwargs)
         elif varname.endswith("_C") :
             varname_temp = varname[:-2]
-            return self.get_legend(varname_temp, *args, **kwargs)
+            return self.get_legend(varname_temp, *args, units="°C", **kwargs)
         else :
             return varname
     
@@ -1382,23 +1386,34 @@ class Dom():
             kwargs : all the kwargs from get_data
         01/02/2023 : Mathieu LANDREAU
         """
-        if varname == "it" :
+        if varname.upper() == "IT" :
             it = np.arange(5000, dtype="int")[kwargs["time_slice"]]
             return np.expand_dims(it, axis=(-3, -2, -1))
-        elif varname == "iz" :
+        elif varname.upper() == "IZ" :
             s = slice(kwargs["crop"][0][0], kwargs["crop"][0][1])
             iz = np.arange(5000, dtype="int")[s]
             return np.expand_dims(iz, axis=(0, -2, -1))
-        elif varname == "iy" :
+        elif varname.upper() == "IY" :
             s = slice(kwargs["crop"][1][0], kwargs["crop"][1][1])
             iy = np.arange(5000, dtype="int")[s]
             return np.expand_dims(iy, axis=(0, 1, -1))
-        elif varname == "ix" :
+        elif varname.upper() == "IX" :
             s = slice(kwargs["crop"][2][0], kwargs["crop"][2][1])
             ix = np.arange(5000, dtype="int")[s]
             return np.expand_dims(ix, axis=(0, 1, 2))
+        elif varname in ["IX2D", "IY2D"] :
+            IX, IY = self.get_data(["IX", "IY"], **kwargs)
+            IX2D, IY2D = np.meshgrid(IX, IY)
+            if varname == "IX2D" : return IX2D
+            elif varname == "IY2D" : return IY2D
         elif varname.startswith("SQUARED_"):
             return self.get_data(varname[8:], **kwargs)**2
+        elif varname.startswith("SQRT_"):
+            return np.sqrt(self.get_data(varname[5:], **kwargs))
+        elif varname.startswith("LOG_"):
+            return np.log(self.get_data(varname[4:], **kwargs))
+        elif varname.startswith("EXP_"):
+            return np.exp(self.get_data(varname[4:], **kwargs))
         elif varname == "MTIME" : 
             # not used anymore. The objective was to get the time of the middle of the averaged window for averaged variables
             TIME_STATS = np.array(self.get_data("TIME_STATS", **kwargs))
@@ -1717,6 +1732,7 @@ class Dom():
                 new_kwargs = copy.deepcopy(kwargs)
                 new_kwargs["crop"] = ("ALL", crop[1], crop[2]) 
                 new_kwargs["hinterp"] = None
+                new_kwargs["saved"] = {}
             Z = self.get_data("Z", **new_kwargs)
             zaxis = self.find_axis("z", dim=3, **new_kwargs)
             if varname in ["SBZC", "LBZC"] :
@@ -3402,7 +3418,7 @@ class Dom():
 ######  Geography and location
 #################################################################################################################################
                
-    def nearest_index_from_self_grid(self, points, **kwargs):
+    def nearest_index_from_self_grid(self, points, return_dist=False, **kwargs):
         """
         for each coordinate pair of points, it return the index of the nearest self grid points
         in
@@ -3416,37 +3432,52 @@ class Dom():
         tree = self.get_data("tree")
         I = tree.query(points)
         iy, ix = np.unravel_index(I[1], (self.get_data("NY"), self.get_data("NX")))
-        return iy, ix
+        res = (iy, ix)
+        if return_dist :
+            dist = I[0]
+            res += (dist,)
+        return res
     
-    
-    def nearest_index_to_self_grid(self, LAT_ext, LON_ext):
+    def nearest_index_to_self_grid(self, LAT_ext_in, LON_ext_in, return_dist=False):
+        """for self grid points, it return the index of the nearest external grid points
+        Parameters
+            LAT_ext, LON_ext (np.arrays): arrays of Latitude and Longitude points, can have any dimensions, will be flattened
+        Optional
+            return_dist (boolean): if True, returns also the distance of the query
+        Return 
+            i (np.array of shape(self.NY, self.NX)): the index of the nearest point in external dataset (without NaNs) from each self grid point
+            mask (np.array) : scipy.spatial.query doesn't manage NaNs, so we apply a mask to remove NaNs, and returns the mask
+            dist (np.array of shape(self.NY, self.NX)): the distance between each self grid points and the nearest external point
         """
-        for self grid points, it return the index of the nearest external grid points
-        in
-        LAT_ext, LON_ext : arrays of Latitude and Longitude points, can have any dimensions
-        out
-        iy, ix : 2D arrays of shape(self.NY, self.NX) 
-        """
-        shape_ext = LAT_ext.shape
-        llgrid = np.array([LAT_ext, LON_ext])
-        llgrid = llgrid.reshape(2, -1).T
-        tree = spatial.cKDTree(llgrid)
-        
-        points = np.transpose(np.array([self.get_data("LAT").flatten(), self.get_data("LON").flatten()]))
-        I = tree.query(points)
-        iy, ix = np.unravel_index(I[1], shape_ext)
-        NX = self.get_data("NX")
-        NY = self.get_data("NY")
-        return iy.reshape(NY, NX), ix.reshape(NY, NX)
+        LAT_ext, LON_ext = LAT_ext_in.flatten(), LON_ext_in.flatten()
+        mask = np.logical_not(np.logical_or(np.isnan(LAT_ext), np.isnan(LON_ext)))
+        LAT_ext, LON_ext = LAT_ext[mask], LON_ext[mask]
+        if len(LAT_ext) > 0 :
+            llgrid = np.array([LAT_ext, LON_ext]).T
+            tree = spatial.cKDTree(llgrid)
+            LAT, LON = self.get_data("LAT").flatten(), self.get_data("LON").flatten()
+            points = np.array([LAT, LON.flatten()]).T
+            dist, i = tree.query(points)
+            NX, NY = self.get_data(["NX", "NY"])
+            res = (i.reshape(NY, NX), mask)
+            if return_dist :
+                res += (dist.reshape(NY, NX),)
+        else :
+            return None
+        return res
     
-    def interpolate_to_self_grid(self, LAT_ext, LON_ext, VAL_ext, interp="nearest_neighbor"):
+    def interpolate_to_self_grid(self, LAT_ext, LON_ext, VAL_ext, interp="nearest_neighbor", max_dist_km=None):
         if interp in ["nearest_neighbor", "nn"]:
-            NX = self.get_data("NX")
-            NY = self.get_data("NY")
-            iy, ix = self.nearest_index_to_self_grid(LAT_ext, LON_ext)
-            return VAL_ext[iy, ix]
-            #we could have used scipy.interpolate.NearestNDInterpolator 
-            #https://docs.scipy.org/doc/scipy/reference/generated/scipy.interpolate.NearestNDInterpolator.html#scipy.interpolate.NearestNDInterpolator
+            NX, NY = self.get_data(["NX", "NY"])
+            i_ext, mask, dist_deg = self.nearest_index_to_self_grid(LAT_ext, LON_ext, return_dist=True)
+            res = VAL_ext.flatten()[mask][i_ext]
+            if max_dist_km is not None and max_dist_km > 0 :
+                LAT = self.get_data("LAT")
+                # Approximative conversion from a distance in degrees to a distance in kilometers
+                # But 1 longitude degree is not equal to 1 latitude degree, so we suppose an average
+                dist_km = dist_deg * np.pi/180 * constants.EARTH_RADIUS/1000 * np.sqrt(0.5+0.5*np.sin(np.deg2rad(LAT))**2)
+                res[dist_km > max_dist_km] = np.nan
+            return res
         elif interp in ["linear"] :
             LAT = self.get_data("LAT")
             LON = self.get_data("LON")
@@ -3455,7 +3486,6 @@ class Dom():
             #https://docs.scipy.org/doc/scipy/reference/generated/scipy.interpolate.LinearNDInterpolator.html#scipy.interpolate.LinearNDInterpolator
         else :
             raise(Exception("Wrong interpolation method ( interp=", interp, "), Cubic may be resolved by scipy for structured grid"))
-        
         
     def get_zoom_index(self, points):
         """

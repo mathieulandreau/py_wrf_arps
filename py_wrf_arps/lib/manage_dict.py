@@ -1,6 +1,6 @@
 import copy
 
-def select_params(d1, d2, depth=20):
+def select_params(d1, d2, depth=5000):
     for k in d2 :
         if k not in d1 :
             d1[k] = copy.copy(d2[k])

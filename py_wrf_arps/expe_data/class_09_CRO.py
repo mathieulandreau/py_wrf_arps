@@ -3,11 +3,13 @@ import sys
 from .class_expe import Expe
 from .LidarScanModule2 import LidarScan2
 from ..lib import manage_projection, manage_time, manage_angle, manage_path
+from ..post import manage_LLJ
 
 import numpy as np
 import netCDF4
 import datetime
 import os
+import copy
 
 CRO_VARNAMES = {
     "LLJ_MH" : "llj_speed",
@@ -66,7 +68,9 @@ class CRO(Expe):
             with netCDF4.Dataset(self.postproc_filename, "r") as file :
                 self.post_variables = file.variables.keys()
     
-    def get_data(self, varname, itime="ALL_TIMES", time_slice=None, crop=None, **kwargs):
+    def get_data(self, varname, itime="ALL_TIMES", time_slice=None, crop=None, saved=None, **kwargs):
+        if saved is None : saved = {}
+        if varname in saved : return np.squeeze(saved[varname])
         if time_slice is None :
             time_slice = manage_time.get_time_slice(itime, self.date_list)
         if crop is not None :
@@ -83,7 +87,12 @@ class CRO(Expe):
                 z_slice = slice(self.NZ)
         else :
             z_slice = slice(self.NZ)
-        if varname == "MH":
+        
+        if varname.upper() == "IT" :
+            return np.arange(5000, dtype="int")[kwargs["time_slice"]]
+        elif varname.upper() == "IZ" :
+            return np.arange(self.NZ, dtype="int")[z_slice]
+        elif varname == "MH":
             return np.squeeze(np.array(self.obj.wind_speed)[time_slice, z_slice])
         elif varname == "WD":
             return np.squeeze(np.array(self.obj.wind_direction)[time_slice, z_slice])
@@ -105,25 +114,21 @@ class CRO(Expe):
                     elif len(var) == self.NZ :
                         return var[z_slice]
                 return var
-        elif varname in CRO_VARNAMES :
-            varname_cro = CRO_VARNAMES[varname]
-            if varname_cro.startswith("llj_"):
-                # the llj dataframe contains only dates at which an llj was detected so we fill with nans when there are no LLJ
-                var = np.zeros(len(self.date_list))*np.nan
-                var[self.llj_time_slice] = np.array(self.obj.llj[varname_cro[4:]])
-                return var[time_slice]
+        # elif varname in CRO_VARNAMES :
+        #     varname_cro = CRO_VARNAMES[varname]
+        #     if varname_cro.startswith("llj_"):
+        #         # the llj dataframe contains only dates at which an llj was detected so we fill with nans when there are no LLJ
+        #         var = np.zeros(len(self.date_list))*np.nan
+        #         var[self.llj_time_slice] = np.array(self.obj.llj[varname_cro[4:]])
+        #         return var[time_slice]
         elif varname.startswith("llj_") and varname[4:] in self.obj.llj :
             var = np.zeros(len(self.date_list))*np.nan
             var[self.llj_time_slice] = np.array(self.obj.llj[varname[4:]])
             return var[time_slice]
-        elif varname == "it" :
-            it = np.arange(5000, dtype="int")[time_slice]
-            return np.expand_dims(it, axis=(-1))
-        elif varname == "iz" :
-            iz = np.arange(5000, dtype="int")[z_slice]
-            return np.expand_dims(iz, axis=(0))
         else :
-            return self.calculate(varname, itime=itime, time_slice=time_slice, crop=crop, **kwargs)
+            data = self.calculate(varname, itime=itime, time_slice=time_slice, crop=crop, saved=saved, **kwargs)
+            saved[varname] = data
+            return data
        
     def calculate(self, varname, **kwargs) :
         if varname.startswith("U_AD"):
@@ -150,8 +155,50 @@ class CRO(Expe):
         elif varname.startswith("WD18021"): #Wind direction in degrees [-180, 180]
             WD = self.get_data("WD"+varname[5:], **kwargs)
             return manage_angle.angle180(WD)
+        elif varname in ["LLJ", "LLJ_IZ", "LLJ_Z", "LLJ_MH", "LLJ_PROM", "LLJ_WIDTH"] :
+            new_kwargs = copy.deepcopy(kwargs)
+            new_kwargs["crop"] = ("ALL", "ALL", "ALL")
+            new_kwargs["saved"] = {}
+            MH = self.get_data("MH", **new_kwargs)
+            Z = self.get_data("Z", **new_kwargs)
+            IZ = self.get_data("IZ", **new_kwargs)
+            DZ = self.get_data("DZ", **new_kwargs)
+            zaxis = 0
+            if MH.ndim == 2 :
+                NT, NZ = MH.shape
+                Z = np.array([Z]*NT)
+                DZ = np.array([DZ]*NT)
+                zaxis = 1
+            print(MH.shape, Z.shape, IZ.shape, DZ.shape, zaxis)
+            p = kwargs["saved"]
+            p["LLJ"], p["LLJ_IZ"], p["LLJ_Z"], p["LLJ_MH"], p["LLJ_PROM"], p["LLJ_WIDTH"] = manage_LLJ.detect_LLJ(MH, Z, IZ, DZ, zaxis, max_height=500, prom_abs=2, prom_rel=0.2, width=50, squeeze=False)
+            return np.squeeze(p[varname])
+        elif varname.startswith("LLJ_"):
+            return self.calculate_LLJ(varname, **kwargs)
         else :
             raise(Exception("error in class_09_CRO.get_data, the variable name : " + str(varname) + " doesn't exist"))
+            
+    def calculate_LLJ(self, varname, **kwargs):
+        if varname in ["LLJ_MIN"]:
+            return self.get_data("LLJ_MH", **kwargs) - self.get_data("LLJ_PROM", **kwargs)
+        elif varname.startswith("LLJ_"):
+            varname1 = varname[4:]
+            LLJ_IZ = self.get_data("LLJ_IZ", **kwargs)
+            LLJ = self.get_data("LLJ", **kwargs)
+            new_kwargs = copy.deepcopy(kwargs)
+            new_kwargs["crop"] =  ("ALL", kwargs["crop"][1], kwargs["crop"][2])
+            new_kwargs["saved"] = {}
+            var1 = self.get_data(varname1, **new_kwargs)
+            zaxis = var1.ndim-1
+            LLJ = np.expand_dims(LLJ, axis=zaxis).astype(int)
+            LLJ_IZ = np.expand_dims(LLJ_IZ, axis=zaxis).astype(int)
+            LLJ_IZ[LLJ!=1] = 0
+            print(var1.shape, LLJ.shape, LLJ_IZ.shape)
+            var = np.take_along_axis(var1, LLJ_IZ, axis=zaxis)
+            var[LLJ!=1] = np.nan
+            return var
+        else :
+            raise(Exception(f"Unknown varname {varname} in CRO.calculate_GW"))
     
     def get_label(self) :
         return "Croisic LiDAR"
@@ -171,8 +218,6 @@ class CRO(Expe):
         lon2, lat2 = manage_projection.xy_to_ll(xc2, yc2, manage_projection.CRS)
         print(np.array([lon1, self.lon_lidar, lon2]), np.array([lat1, self.lat_lidar, lat2]))
         return np.array([lon1, self.lon_lidar, lon2]), np.array([lat1, self.lat_lidar, lat2])
-        
-
         
     def write_postproc(self, varname, var, dims, long_name="", standard_name="", units="", latex_units="", typ=np.float32) :
         """
