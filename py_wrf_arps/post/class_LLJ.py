@@ -35,9 +35,9 @@ class LLJ():
         if DX_smooth is None and DX_smooth_rel is not None:
             DX_KM = self.sim.get_data(dom, "DX")/1000
             DX_smooth = DX_smooth_rel*DX_KM
-        MH, Z, IZ, DZ = self.sim.get_data(dom, ["MH", "Z", "iz", "DZ"], DX_smooth=DX_smooth, **kw_get)
+        MH, Z, IZ = self.sim.get_data(dom, ["MH", "Z", "iz"], DX_smooth=DX_smooth, **kw_get)
         zaxis = self.sim.get_dom(dom).find_axis("z", varname="MH", **kw_get)
-        return manage_LLJ.detect_LLJ(MH, Z, IZ, DZ, zaxis, max_height, prom_abs, prom_rel, width)
+        return manage_LLJ.detect_LLJ(MH, Z, IZ, zaxis, max_height, prom_abs, prom_rel, width)
     
     def write_postproc_1time(self, it, dom, dry, crop, kw):
         print(it, end=" ")

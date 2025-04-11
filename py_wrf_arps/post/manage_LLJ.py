@@ -6,14 +6,13 @@ def peak_prominences_widths(MH, IZ):
     widths, _, left_ips, right_ips = scipy.signal.peak_widths(MH, IZ, prominence_data=(prominences, left_bases, right_bases))
     return prominences, widths, left_ips, right_ips
 
-def detect_LLJ(MH_in, Z_in, IZ_in, DZ_in, zaxis, max_height=500, prom_abs=2, prom_rel=0.2, width=50, squeeze=False) :
+def detect_LLJ(MH_in, Z_in, IZ_in, zaxis, max_height=500, prom_abs=2, prom_rel=0.2, width=50, squeeze=False) :
     """ Detect the presence of LLJ by searching a peak in the wind speed profile below max_height meters, and return the core speed, height, and vertical index
         Partly based on Visich, Aleksandra, et Boris Conan. 2025. https://doi.org/10.1016/j.oceaneng.2025.120749.
     Parameters
         MH_in (np.array): Horizontal wind speed array of shape (..., NZ, ...)
         Z_in (np.array): Height array of shape (..., NZ, ...)
         IZ_in (1D np.array): Vertical indices array of shape (NZ)
-        DZ_in (np.array): Vertical grid spacing array of shape (..., NZ, ...)
         zaxis (int): index of the Z axis
     Optional
         max_height (float): maximum height up to which the peak is searched, default=500
@@ -30,11 +29,9 @@ def detect_LLJ(MH_in, Z_in, IZ_in, DZ_in, zaxis, max_height=500, prom_abs=2, pro
     20/03/2025 : Mathieu Landreau
     """  
     # 
-    DZ0 = np.take(DZ_in, 0, axis=zaxis)
-    shape = DZ0.shape
+    shape = np.take(MH_in, 0, axis=zaxis).shape
     MH = np.insert(MH_in, 0, np.zeros(shape), axis=zaxis)
     Z = np.insert(Z_in, 0, np.zeros(shape), axis=zaxis)
-    DZ = np.insert(DZ_in, 0, DZ0, axis=zaxis)
     IZ = np.append(IZ_in, np.nanmax(IZ_in)+1)
     
     # Roughly step 1 and 2 from Visich and Conan, 2025
