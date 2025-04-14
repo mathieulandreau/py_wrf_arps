@@ -1029,7 +1029,7 @@ class Dom():
             boolean : True if stress tensor bilan term variable, False otherwise, ex : PUU, PVW, AUU1, ...
         25/03/2024 : Mathieu LANDREAU
         """
-        return varname[0] in ["P", "A", "T", "D", "B"] and (
+        return varname[0] in ["P", "A", "T", "D", "B", "S"] and (
                 len(varname) >= 4 and varname[1:4] == "TKE" or 
                 (len(varname) >= 3 and (varname[1] in ["U", "V", "W"] and varname[2] in ["U", "V", "W"]))
         )

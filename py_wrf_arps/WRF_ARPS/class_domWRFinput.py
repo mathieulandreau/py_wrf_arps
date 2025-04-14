@@ -16,21 +16,21 @@ class DomWRFinput(DomWRF):
         if self.FLAGS["sfc"] :
             if self.keep_open :
                 self.VARIABLES["LAI"] = VariableRead("LAI", "LAI", None, None, None, self.output_filenames["sfc"], True, "LAI",\
-                                                     ncfile = next(iter(self.output_filenames["sfc"].items()))[1]) 
+                                                     file = next(iter(self.output_filenames["sfc"].items()))[1]) 
                 self.VARIABLES["VEGFRA"] = VariableRead("VEGFRA", "VEGFRA", None, None, None, self.output_filenames["sfc"], True, "VEGFRA",\
-                                                        ncfile = next(iter(self.output_filenames["sfc"].items()))[1]) 
+                                                        file = next(iter(self.output_filenames["sfc"].items()))[1]) 
                 self.VARIABLES["LAI_INPUT"] = VariableRead("LAI", "LAI", None, None, None, self.output_filenames["base"], True, "LAI",\
-                                                           ncfile = next(iter(self.output_filenames["base"].items()))[1]) 
+                                                           file = next(iter(self.output_filenames["base"].items()))[1]) 
                 self.VARIABLES["VEGFRA_INPUT"] = VariableRead("VEGFRA", "VEGFRA", None, None, None, self.output_filenames["base"], True, "VEGFRA",\
-                                                              ncfile = next(iter(self.output_filenames["base"].items()))[1])
+                                                              file = next(iter(self.output_filenames["base"].items()))[1])
             else :
-                with Dataset(next(iter(self.output_filenames["sfc"].items()))[0], "r") as ncfile:
-                    self.VARIABLES["LAI"] = VariableRead("LAI", "LAI", None, None, None, self.output_filenames["sfc"], True, "LAI", ncfile=ncfile) 
-                    self.VARIABLES["VEGFRA"] = VariableRead("VEGFRA", "VEGFRA", None, None, None,self.output_filenames["sfc"], True, "VEGFRA", ncfile=ncfile)
-                with Dataset(next(iter(self.output_filenames["base"].items()))[0], "r") as ncfile:
-                    self.VARIABLES["LAI_INPUT"] = VariableRead("LAI", "LAI", None, None, None, self.output_filenames["base"], True, "LAI", ncfile=ncfile) 
+                with Dataset(next(iter(self.output_filenames["sfc"].items()))[0], "r") as file:
+                    self.VARIABLES["LAI"] = VariableRead("LAI", "LAI", None, None, None, self.output_filenames["sfc"], True, "LAI", file=file) 
+                    self.VARIABLES["VEGFRA"] = VariableRead("VEGFRA", "VEGFRA", None, None, None,self.output_filenames["sfc"], True, "VEGFRA", file=file)
+                with Dataset(next(iter(self.output_filenames["base"].items()))[0], "r") as file:
+                    self.VARIABLES["LAI_INPUT"] = VariableRead("LAI", "LAI", None, None, None, self.output_filenames["base"], True, "LAI", file=file) 
                     self.VARIABLES["VEGFRA_INPUT"] = VariableRead("VEGFRA", "VEGFRA", None, None, None, self.output_filenames["base"], True, "VEGFRA",\
-                                                                  ncfile=ncfile)
+                                                                  file=file)
                     
             
     def get_output_filenames(self):

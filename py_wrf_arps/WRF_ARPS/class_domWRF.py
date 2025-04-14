@@ -714,7 +714,7 @@ class DomWRF(Dom):
             kwargs : all the kwargs from get_data
         05/02/2025 : Mathieu LANDREAU
         """
-        if varname in ["PTKE", "ATKE", "TTKE", "DTKE", "BTKE"] : #total production or advection or pressure transfer or turbulent diffusion or buoyancy  for TKE
+        if varname in ["PTKE", "ATKE", "TTKE", "DTKE", "BTKE"] : #total Production, Advection, pressure Transfer, turbulent Diffusion, Buoyancy, or Subgrid for TKE
             vUU, vVV, vWW = self.get_data([p+varname[0]+"UU", p+varname[0]+"VV", p+varname[0]+"WW"], **kwargs) 
             return 0.5*(vUU+vVV+vWW)
         elif varname in ["PUU", "PVV", "PWW", "AUU", "AVV", "AWW", "AUV", "AUW", "AVW", "DUU", "DVV", "DWW", "DUV", "DUW", "DVW"] : #total production or advection or turbulent diffusion for 3 terms
@@ -884,6 +884,24 @@ class DomWRF(Dom):
         elif varname in ["BUU", "BVV", "BUV"] :
             return self.get_data("ZERO", **kwargs)
         
+        # Subgrid transfer
+        elif varname in ["STKE"] :
+            #k,t = -<tau_ij',j.u_i'>
+            #k,t = -<tau_ij'.u_i'>,j + <tau_ij'.u_i',j>
+            #k,t = <tau_ij.u_i,j> - <tau_ij.u_i>,j - <tau_ij>,j.<u_i>
+            #k,t = <tau_ij.D_ij> - <tau_ij.u_i>,j - <tau_ij>,j.<u_i>
+            DIJTAUIJ = self.get_data("DIJTAUIJ_AVG", **kwargs)
+            DXW_UITAUI1, DYW_UITAUI2, DZ_UITAUI3 = self.get_data(["DXW_UITAUI1_AVG", "DYW_UITAUI2_AVG", "DZ_UITAUI3_AVG"], **kwargs)
+            DXW_TAU11, DXW_TAU12, DXW_TAU13, 
+            DYW_TAU12, DYW_TAU22, DYW_TAU23, 
+            DZ_TAU13,  DZ_TAU23,  DZ_TAU33, = self.get_data(
+            ["DXW_TAU11_AVG", "DXW_TAU12_AVG", "DXW_TAU13_AVG", 
+             "DYW_TAU12_AVG", "DYW_TAU22_AVG", "DYW_TAU23_AVG", 
+             "DZ_TAU13_AVG",  "DZ_TAU23_AVG",  "DZ_TAU33_AVG"], **kwargs)
+            U, V, W = self.get_data(["U", "V", "W"], **kwargs)
+            return DIJTAUIJ \
+                    - (DXW_UITAUI1 + DYW_UITAUI2 + DZ_UITAUI3)\
+                    - ((DXW_TAU11 + DYW_TAU12 + DZ_TAU13)*U + (DXW_TAU12 + DYW_TAU22 + DZ_TAU23)*V  + (DXW_TAU13 + DYW_TAU23 + DZ_TAU33)*W)
         else : 
             raise(Exception(f"Unknown stress tensor bilan term : {varname}, check the is_stress_tensor_bilan_term function"))
 
