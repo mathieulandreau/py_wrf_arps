@@ -279,6 +279,10 @@ class DomWRF(Dom):
             var_BASE = self.get_data(varname+"_BASE", **kwargs)
             var_PERT = self.get_data(varname+"_PERT", **kwargs)
             return var_BASE + var_PERT
+        elif varname in ["PI"]:  #BASE + PERT
+            var_BASE = self.get_data("P_BASE", **kwargs)
+            var_PERT = self.get_data("PI_PERT", **kwargs)
+            return var_BASE + var_PERT
         elif varname in ["PT"] :
             PTV = self.get_data("PTV", **kwargs)
             QV = self.get_data("QV", **kwargs)
@@ -289,7 +293,7 @@ class DomWRF(Dom):
             PT_var = self.get_data("P"+varname, **kwargs)
             P = self.get_data("P", **kwargs)
             return constants.PT_to_T(PT_var, P)
-        elif varname in ["ZP_PERT", "MUT_PERT", "PTV_PERT", "P_PERT"]:
+        elif varname in ["ZP_PERT", "MUT_PERT", "PTV_PERT", "P_PERT", "PI_PERT"]:
             if kwargs["avg"] :
                 return self.get_data(varname+"_AVG", **kwargs)
             else :
@@ -422,6 +426,9 @@ class DomWRF(Dom):
             C3 = self.get_data("C3"+stagname, **kwargs) # c3 = b
             MUT_PERT = self.get_data("MUT_PERT", **kwargs)
             return C3*MUT_PERT
+        elif varname in ["PNH", "PNH_AVG"] : # Non-hydrostatic pressure
+            P, PI = self.get_data(["P_PERT_AVG", "PI_PERT_AVG"], **kwargs)
+            return P-PI
         elif varname in ["MUD_BASE", "MUD_BASE_ZSTAG"] : #See Skamarock 2019 eq. 2.6
             stagname = varname[8:]
             C1 = self.get_data("C1"+stagname, **kwargs) #c1 = d b / d eta
@@ -483,8 +490,8 @@ class DomWRF(Dom):
                 return CS2*LH2*np.sqrt(0.25*(D11-D22)**2 + D12**2)
             elif KM_OPT == 2 : # 3D TKE see Skamarock 2019 eq. 4.6 to 4.7
                 LTURBH = self.get_data("LTURBH", **kwargs)
-                TKE = self.get_data("TKE", **kwargs)
-                return constants.CK*LTURBH*np.sqrt(TKE)
+                TKE_SFS = self.get_data("TKE_SFS", **kwargs)
+                return constants.CK*LTURBH*np.sqrt(TKE_SFS)
             else :
                 raise(Exception("error in DomWRF.calculate(KMH, ...) cannot compute with KM_OPT = " + str(KM_OPT)))
         elif varname in ["KMV"]:
@@ -684,7 +691,7 @@ class DomWRF(Dom):
                 varname2 = varname[4:]
                 if varname1 == varname2 :
                     return self.get_data("M2"+varname1, **kwargs)
-                if varname2 in ["PT", "PTV", "T", "P", "ZP"] : 
+                if varname2 in ["PT", "PTV", "T", "P", "ZP", "PI"] : 
                     varname2 = varname2 + "_PERT"
                 product_avg = self.get_data(varname1+varname2+"_AVG", **kwargs)
                 var1_avg = self.get_data(varname1+"_AVG", **kwargs)
@@ -714,7 +721,9 @@ class DomWRF(Dom):
             kwargs : all the kwargs from get_data
         05/02/2025 : Mathieu LANDREAU
         """
-        if varname in ["PTKE", "ATKE", "TTKE", "DTKE", "BTKE"] : #total Production, Advection, pressure Transfer, turbulent Diffusion, Buoyancy, or Subgrid for TKE
+        # P: shear production, A: advection, T:pressure transport, D: turbulent diffusion, B: buoyancy, N: Non-hydrostatic pressure transport, R: "exact" pressure transport
+        if varname in ["PTKE", "ATKE", "TTKE", "DTKE", "BTKE", "NTKE", "RTKE", "GTKE", "KTKE"] : #total Production, Advection, pressure Transfer, turbulent Diffusion, Buoyancy, or Non-hydrostatic pressure
+            if varname in ["GTKE"] : print("GUU/2")
             vUU, vVV, vWW = self.get_data([p+varname[0]+"UU", p+varname[0]+"VV", p+varname[0]+"WW"], **kwargs) 
             return 0.5*(vUU+vVV+vWW)
         elif varname in ["PUU", "PVV", "PWW", "AUU", "AVV", "AWW", "AUV", "AUW", "AVW", "DUU", "DVV", "DWW", "DUV", "DUW", "DVW"] : #total production or advection or turbulent diffusion for 3 terms
@@ -859,17 +868,63 @@ class DomWRF(Dom):
             RHO, DYW_COVWP, DZ_COVVP = self.get_data(["RHO", p+"DYW_COVWP", "DZ_"+p+"COVVP"], **kwargs)
             return -(DYW_COVWP + DZ_COVVP)/RHO
         
+        # Pressure transfer term
+        elif varname in ["RUU"]:
+            return -2*self.get_data("COVUALPG1", **kwargs)
+        elif varname in ["RVV"]:
+            return -2*self.get_data("COVVALPG2", **kwargs)
+        elif varname in ["RWW"]:
+            return -2*self.get_data("COVWALPG3", **kwargs)
+        
+        # Subgrid term 1
+        elif varname in ["GUU"]:
+            print("COVUS1*2")
+            return 2*self.get_data("COVUS1", **kwargs)
+        elif varname in ["GVV"]:
+            return 2*self.get_data("COVVS2", **kwargs)
+        elif varname in ["GWW"]:
+            return 2*self.get_data("COVWS3", **kwargs)
+        
+        # Pressure transfer term
+        elif varname in ["NUU"]:
+            RHO, DXW_COVUP = self.get_data(["RHO", p+"DXW_"+p+"COVUPNH"], **kwargs)
+            return -2*DXW_COVUP/RHO
+        elif varname in ["NVV"]:
+            RHO, DYW_COVVP = self.get_data(["RHO", p+"DYW_"+p+"COVVPNH"], **kwargs)
+            return -2*DYW_COVVP/RHO
+        elif varname in ["NWW"]:
+            RHO, DZ_COVWP = self.get_data(["RHO", "DZ_COVWPNH"], **kwargs)
+            return -2*DZ_COVWP/RHO
+        elif varname in ["NUV"] :
+            RHO, DXW_COVVP, DYW_COVUP = self.get_data(["RHO", p+"DXW_"+p+"COVVPNH", p+"DYW_"+p+"COVUPNH"], **kwargs)
+            return -(DXW_COVVP + DYW_COVUP)/RHO
+        elif varname in ["NUW"] :
+            RHO, DXW_COVWP, DZ_COVUP = self.get_data(["RHO", p+"DXW_COVWPNH", "DZ_"+p+"COVUPNH"], **kwargs)
+            return -(DXW_COVWP + DZ_COVUP)/RHO
+        elif varname in ["NVW"] :
+            RHO, DYW_COVWP, DZ_COVVP = self.get_data(["RHO", p+"DYW_COVWPNH", "DZ_"+p+"COVVPNH"], **kwargs)
+            return -(DYW_COVWP + DZ_COVVP)/RHO
+        
+        # Exact turbulent diffusion of TKE
+        elif varname in ["KUU"]:
+            return -2*self.get_data("COVUKE1", **kwargs)
+        elif varname in ["KVV"]:
+            return -2*self.get_data("COVVKE2", **kwargs)
+        elif varname in ["KWW"]:
+            return -2*self.get_data("COVWKE3", **kwargs)
+        
         # Turbulent diffusion = <ui'uj'uk'>,k
         elif varname in ["DUU1", "DUU2", "DUU3", "DVV1", "DVV2", "DVV3", "DWW1", "DWW2", "DWW3"] :
             v1, v2 = varname[1], varname[2]
-            v3 = ["U", "V", "W"][int(varname[3])]
-            deriv = [p+"DXW_", p+"DYW_", p+"DZ_"][int(varname[3])]
+            i = int(varname[3])-1
+            v3 = ["U", "V", "W"][i]
+            deriv = [p+"DXW_", p+"DYW_", p+"DZ_"][i]
             temp = [v1, v2, v3]
             temp.sort() # M3UUW but not M3UWU
             M3 = "M3"+temp[0]+temp[1]+temp[2]
             if not v1==v2==v3=="W" :
                 M3 = p+M3
-            return self.get_data(deriv+M3, **kwargs)
+            return -self.get_data(deriv+M3, **kwargs)
         
         # Buoyancy : Bij = [gj <ui'theta_v'> + gi <uj' theta_v'>]/theta_v
         elif varname in ["BUW"] :
@@ -888,20 +943,20 @@ class DomWRF(Dom):
         elif varname in ["STKE"] :
             #k,t = -<tau_ij',j.u_i'>
             #k,t = -<tau_ij'.u_i'>,j + <tau_ij'.u_i',j>
-            #k,t = <tau_ij.u_i,j> - <tau_ij.u_i>,j - <tau_ij>,j.<u_i>
-            #k,t = <tau_ij.D_ij> - <tau_ij.u_i>,j - <tau_ij>,j.<u_i>
+            #k,t = -<tau_ij.u_i>,j + <tau_ij.u_i,j> + <tau_ij>,j.<u_i>
+            #k,t = -<tau_ij.u_i>,j + <tau_ij.D_ij> + <tau_ij>,j.<u_i>
             DIJTAUIJ = self.get_data("DIJTAUIJ_AVG", **kwargs)
             DXW_UITAUI1, DYW_UITAUI2, DZ_UITAUI3 = self.get_data(["DXW_UITAUI1_AVG", "DYW_UITAUI2_AVG", "DZ_UITAUI3_AVG"], **kwargs)
-            DXW_TAU11, DXW_TAU12, DXW_TAU13, 
-            DYW_TAU12, DYW_TAU22, DYW_TAU23, 
-            DZ_TAU13,  DZ_TAU23,  DZ_TAU33, = self.get_data(
-            ["DXW_TAU11_AVG", "DXW_TAU12_AVG", "DXW_TAU13_AVG", 
-             "DYW_TAU12_AVG", "DYW_TAU22_AVG", "DYW_TAU23_AVG", 
+            DXW_TAU11, DXW_TAU12, DXW_TAU13,\
+            DYW_TAU12, DYW_TAU22, DYW_TAU23,\
+            DZ_TAU13,  DZ_TAU23,  DZ_TAU33, = self.get_data(\
+            ["DXW_TAU11_AVG", "DXW_TAU12_AVG", "DXW_TAU13_AVG",\
+             "DYW_TAU12_AVG", "DYW_TAU22_AVG", "DYW_TAU23_AVG",\
              "DZ_TAU13_AVG",  "DZ_TAU23_AVG",  "DZ_TAU33_AVG"], **kwargs)
             U, V, W = self.get_data(["U", "V", "W"], **kwargs)
-            return DIJTAUIJ \
+            return +0.5*DIJTAUIJ \
                     - (DXW_UITAUI1 + DYW_UITAUI2 + DZ_UITAUI3)\
-                    - ((DXW_TAU11 + DYW_TAU12 + DZ_TAU13)*U + (DXW_TAU12 + DYW_TAU22 + DZ_TAU23)*V  + (DXW_TAU13 + DYW_TAU23 + DZ_TAU33)*W)
+                    + ((DXW_TAU11 + DYW_TAU12 + DZ_TAU13)*U + (DXW_TAU12 + DYW_TAU22 + DZ_TAU23)*V  + (DXW_TAU13 + DYW_TAU23 + DZ_TAU33)*W)
         else : 
             raise(Exception(f"Unknown stress tensor bilan term : {varname}, check the is_stress_tensor_bilan_term function"))
 
@@ -917,7 +972,7 @@ class DomWRF(Dom):
         """
         if varname == "RIF" : #Flux Richardson 
             KM_OPT = self.get_data("KM_OPT")
-            if KM_OPT == 4 : # RANSE
+            if KM_OPT == 4 : # RANS
                 KH = self.get_data("KH", **kwargs)
                 KM = self.get_data("KM", **kwargs)
                 RI = self.get_data("RI", **kwargs)
@@ -1043,10 +1098,7 @@ class DomWRF(Dom):
         #Z derivative in cartesian referential frame (t, x, y, z)
         elif varname.startswith("DZ_") : 
             varname2 = varname[3:]
-            avg = ""
-            if "_AVG" in varname2 :
-                avg = "_AVG"
-            DETA_ZP = self.get_data("DETA_ZP"+avg, **kwargs)
+            DETA_ZP = self.get_data("DETA_ZP", **kwargs)
             DETA_var = self.get_data("DETA_"+varname2, **kwargs)
             if debug : print(self.prefix, "DZ", DETA_var.shape, DETA_ZP.shape)
             return DETA_var/DETA_ZP

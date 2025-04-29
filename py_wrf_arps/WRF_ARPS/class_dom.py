@@ -468,7 +468,7 @@ class Dom():
                 return self.date_list_stats[time_slice] if return_val else None
             
             # for WD or COV or ... , it is better to interpolate or average other quantities and then calculate, so we skip this now and go to calculate first
-            avg_before = (varname.startswith("WD") or varname.startswith("MH") or varname.startswith("SCORER") or self.is_statistics(varname, avg_stats) or self.is_vectorial(varname) or varname.upper() in ["DGWRDT", "GAMMA", "IT", "IZ", "IY", "IX"])
+            avg_before = (varname.startswith("WD") or varname.startswith("MH") or varname.startswith("SCORER") or self.is_statistics(varname, avg_stats) or self.is_vectorial(varname) or varname.upper() in ["DGWRDT", "GAMMA", "IT", "IZ", "IY", "IX", "MG"])
             interp_before = avg_before or varname.startswith("X2DV")
             smooth_before = interp_before or ("TIME" in varname or varname in ["X", "Y", "LON", "LAT"] or varname[:2] in ["DX", "DY"] \
                              or "LANDMASK" in varname or "COASTDIST" in varname or varname[:3] in ["COR", "CGX", "CGY", "CDI"]\
@@ -1029,7 +1029,7 @@ class Dom():
             boolean : True if stress tensor bilan term variable, False otherwise, ex : PUU, PVW, AUU1, ...
         25/03/2024 : Mathieu LANDREAU
         """
-        return varname[0] in ["P", "A", "T", "D", "B", "S"] and (
+        return varname[0] in ["P", "A", "T", "D", "B", "S", "N", "R", "G", "K"] and (
                 len(varname) >= 4 and varname[1:4] == "TKE" or 
                 (len(varname) >= 3 and (varname[1] in ["U", "V", "W"] and varname[2] in ["U", "V", "W"]))
         )
@@ -1556,13 +1556,13 @@ class Dom():
             return np.sqrt(NBV2)
         
         elif varname in ["D11", "D12", "D13", "D21", "D22", "D23", "D31", "D32", "D33"]:
-            # Components of the tensor Dij = Ui,j
-            i = int(varname[1])
-            j = int(varname[2])
-            varnamei = ["U", "V", "W"][i-1]
-            varnamej = ["U", "V", "W"][j-1]
-            derivi = ["DXC_", "DYC_", "DZ_"][i-1]
-            derivj = ["DXC_", "DYC_", "DZ_"][j-1]
+            # Components of the tensor Dij = Ui,j+Uj,i (as defined in WRF)
+            i = int(varname[1])-1
+            j = int(varname[2])-1
+            varnamei = ["U", "V", "W"][i]
+            varnamej = ["U", "V", "W"][j]
+            derivi = ["DXC_", "DYC_", "DZ_"][i]
+            derivj = ["DXC_", "DYC_", "DZ_"][j]
             dUidXj = self.get_data(derivj+varnamei, **kwargs)
             if i == j : #do not calculate twice the same (derivatives are expensive)
                 return 2*dUidXj
@@ -1630,18 +1630,21 @@ class Dom():
             FGRAV = self.get_data("FGRAV", **kwargs)
             return FP + FGRAV * 3600 #m/s/h
         
-        elif varname in ["UG", "VG", "MG", "WDG"] : #Geostrophic velocities
-            if varname in ["UG"] : #x component
-                RHO,FC,dPdy = self.get_data(["RHO","FC","DYC_P"], **kwargs)
+        elif varname in ["UG", "VG", "MHG", "WDG", \
+                         "UGSL", "VGSL", "MHGSL", "WDGSL",\
+                         "UGS", "VGS", "MHGS", "WDGS",\
+                         "UGSLS", "VGSLS", "MHGSLS", "WDGSLS"] : #Geostrophic velocities
+            if varname.startswith("UG") : #x component
+                RHO,FC,dPdy = self.get_data(["RHO","FC","DYC_P"+varname[2:]], **kwargs)
                 return -dPdy/(RHO*FC)
-            elif varname in ["VG"] : #y component
-                RHO,FC,dPdx = self.get_data(["RHO","FC","DXC_P"], **kwargs)
+            elif varname.startswith("VG") : #y component
+                RHO,FC,dPdx = self.get_data(["RHO","FC","DXC_P"+varname[2:]], **kwargs)
                 return dPdx/(RHO*FC)
-            elif varname in ["MG"]: #total
-                RHO,FC,dPdx,dPdy = self.get_data(["RHO","FC","DXC_P","DYC_P"], **kwargs)
+            elif varname.startswith("MHG"): #total
+                RHO,FC,dPdx,dPdy = self.get_data(["RHO","FC","DXC_P"+varname[3:],"DYC_P"+varname[3:]], **kwargs)
                 return np.sqrt(dPdx**2 + dPdy**2)/(RHO*FC)
-            elif varname in ["WDG"]: #direction
-                dPdx,dPdy = self.get_data(["DXC_P","DYC_P"], **kwargs)
+            elif varname.startswith("WDG"): #direction
+                dPdx,dPdy = self.get_data(["DXC_P"+varname[3:],"DYC_P"+varname[3:]], **kwargs)
                 WDG = manage_angle.UV2WD_deg(-dPdy, dPdx)
                 return WDG
         elif varname in ["X2DV", "X2DV_KM"] :
