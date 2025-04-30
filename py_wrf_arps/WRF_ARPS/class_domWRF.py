@@ -698,9 +698,15 @@ class DomWRF(Dom):
                 var2_avg = self.get_data(varname2+"_AVG", **kwargs)
                 return product_avg - var1_avg*var2_avg  #<u'v'> = <uv> - <u><v>
         elif varname.startswith("M3") : #3rd order statistics (only for u, v, w)
-            temp = [varname[2], varname[3], varname[4]]
-            temp.sort() # M3UUW but not M3UWU
-            v1, v2, v3 = temp
+            if varname[4:] in ["U", "V", "W"] :
+                temp = [varname[2], varname[3], varname[4]]
+                temp.sort() # M3UUW but not M3UWU
+                v1, v2, v3 = temp
+            else :
+                temp = [varname[2], varname[3]]
+                temp.sort() # M3UUW but not M3UWU
+                v1, v2 = temp
+                v3 = varname[4:]
             s123, s1, s2, s3 = self.get_data([v1+v2+v3+"_AVG", v1+"_AVG", v2+"_AVG", v3+"_AVG"], **kwargs)
             s12, s13, s23 = self.get_data([v1+"2_AVG" if v1==v2 else v1+v2+"_AVG", 
                                            v1+"2_AVG" if v1==v3 else v1+v3+"_AVG", 
@@ -721,9 +727,9 @@ class DomWRF(Dom):
             kwargs : all the kwargs from get_data
         05/02/2025 : Mathieu LANDREAU
         """
+        C = "C"
         # P: shear production, A: advection, T:pressure transport, D: turbulent diffusion, B: buoyancy, N: Non-hydrostatic pressure transport, R: "exact" pressure transport
         if varname in ["PTKE", "ATKE", "TTKE", "DTKE", "BTKE", "NTKE", "RTKE", "GTKE", "KTKE"] : #total Production, Advection, pressure Transfer, turbulent Diffusion, Buoyancy, or Non-hydrostatic pressure
-            if varname in ["GTKE"] : print("GUU/2")
             vUU, vVV, vWW = self.get_data([p+varname[0]+"UU", p+varname[0]+"VV", p+varname[0]+"WW"], **kwargs) 
             return 0.5*(vUU+vVV+vWW)
         elif varname in ["PUU", "PVV", "PWW", "AUU", "AVV", "AWW", "AUV", "AUW", "AVW", "DUU", "DVV", "DWW", "DUV", "DUW", "DVW"] : #total production or advection or turbulent diffusion for 3 terms
@@ -736,28 +742,28 @@ class DomWRF(Dom):
         # Shear production : P = - Rik.Uj,k - Rij.Ui,k
         ## Diagonal terms i=j
         elif varname in ["PUU1"] : #i=j=1, k=1
-            M2U, DXW_U = self.get_data([p+"M2U", p+"DXW_"+p+"U"], **kwargs)
+            M2U, DXW_U = self.get_data([p+"M2U", f"{p}DX{C}_{p}U"], **kwargs)
             return -2*M2U*DXW_U
         elif varname in ["PUU2"] : #i=j=1, k=2
-            COVUV, DYW_U = self.get_data([p+"COVUV", p+"DYW_"+p+"U"], **kwargs)
+            COVUV, DYW_U = self.get_data([p+"COVUV", f"{p}DY{C}_{p}U"], **kwargs)
             return -2*COVUV*DYW_U
         elif varname in ["PUU3"] : #i=j=1, k=3
-            COVUW, DZ_U = self.get_data([p+"COVUW", "DZ_"+p+"U"], **kwargs)
+            COVUW, DZ_U = self.get_data([p+"COVUW", f"DZ_{p}U"], **kwargs)
             return -2*COVUW*DZ_U
         elif varname in ["PVV1"] : #i=j=2, k=1
-            COVUV, DXW_V = self.get_data([p+"COVUV", p+"DXW_"+p+"V"], **kwargs)
+            COVUV, DXW_V = self.get_data([p+"COVUV", f"{p}DX{C}_{p}V"], **kwargs)
             return -2*COVUV*DXW_V
         elif varname in ["PVV2"] : #i=j=2, k=2
-            M2V, DYW_V = self.get_data([p+"M2V", p+"DYW_"+p+"V"], **kwargs)
+            M2V, DYW_V = self.get_data([p+"M2V", f"{p}DY{C}_{p}V"], **kwargs)
             return -2*M2V*DYW_V
         elif varname in ["PVV3"] : #i=j=2, k=3
-            COVVW, DZ_V = self.get_data([p+"COVVW", "DZ_"+p+"V"], **kwargs)
+            COVVW, DZ_V = self.get_data([p+"COVVW", f"DZ_{p}V"], **kwargs)
             return -2*COVVW*DZ_V
         elif varname in ["PWW1"] : #i=j=3, k=1
-            COVUW, DXW_W = self.get_data([p+"COVUW", p+"DXW_W"], **kwargs)
+            COVUW, DXW_W = self.get_data([p+"COVUW", f"{p}DX{C}_W"], **kwargs)
             return -2*COVUW*DXW_W
         elif varname in ["PWW2"] : #i=j=3, k=2
-            COVVW, DYW_W = self.get_data([p+"COVVW", p+"DYW_W"], **kwargs)
+            COVVW, DYW_W = self.get_data([p+"COVVW", f"{p}DY{C}_W"], **kwargs)
             return -2*COVVW*DYW_W
         elif varname in ["PWW3"] : #i=j=3, k=3
             M2W, DZ_W = self.get_data(["M2W", "DZ_W"], **kwargs)
@@ -765,107 +771,107 @@ class DomWRF(Dom):
             
         ## Non-diagonal terms
         elif varname in ["PUV1"] :
-            M2U, DXW_U = self.get_data([p+"M2U", p+"DXW_"+p+"U"], **kwargs)
+            M2U, DXW_U = self.get_data([p+"M2U", f"{p}DX{C}_{p}U"], **kwargs)
             return -M2U*DXW_U
         elif varname in ["PUV2"] :
-            COVUV, DYW_V = self.get_data([p+"COVUV", p+"DYW_"+p+"V"], **kwargs)
+            COVUV, DYW_V = self.get_data([p+"COVUV", f"{p}DY{C}_{p}V"], **kwargs)
             return -COVUV*DYW_V
         elif varname in ["PUV3"] :
-            COVUW, DZ_V = self.get_data([p+"COVUW", "DZ_"+p+"V"], **kwargs)
+            COVUW, DZ_V = self.get_data([p+"COVUW", f"DZ_{p}V"], **kwargs)
             return -COVUW*DZ_V
         elif varname in ["PUV4"] :
-            COVUV, DXW_U = self.get_data([p+"COVUV", p+"DXW_"+p+"U"], **kwargs)
+            COVUV, DXW_U = self.get_data([p+"COVUV", f"{p}DX{C}_{p}U"], **kwargs)
             return -COVUV*DXW_U
         elif varname in ["PUV5"] :
-            M2V, DYW_U = self.get_data([p+"M2V", p+"DYW_"+p+"U"], **kwargs)
+            M2V, DYW_U = self.get_data([p+"M2V", f"{p}DY{C}_{p}U"], **kwargs)
             return -M2V*DYW_U
         elif varname in ["PUV6"] :
-            COVVW, DZ_U = self.get_data([p+"COVVW", p+"DZ_"+p+"U"], **kwargs)
+            COVVW, DZ_U = self.get_data([p+"COVVW", f"DZ_{p}U"], **kwargs)
             return -COVVW*DZ_U
         elif varname in ["PUW1"] :
-            M2U, DXW_W = self.get_data([p+"M2U", p+"DXW_W"], **kwargs)
+            M2U, DXW_W = self.get_data([p+"M2U", f"{p}DX{C}_W"], **kwargs)
             return -M2U*DXW_W
         elif varname in ["PUW2"] :
-            COVUV, DYW_W = self.get_data([p+"COVUV", p+"DYW_W"], **kwargs)
+            COVUV, DYW_W = self.get_data([p+"COVUV", f"{p}DY{C}_W"], **kwargs)
             return -COVUV*DYW_W
         elif varname in ["PUW3"] :
             COVUW, DZ_W = self.get_data([p+"COVUW", "DZ_W"], **kwargs)
             return -COVUW*DZ_W
         elif varname in ["PUW4"] :
-            COVUW, DXW_U = self.get_data([p+"COVUW", p+"DXW_"+p+"U"], **kwargs)
+            COVUW, DXW_U = self.get_data([p+"COVUW", f"{p}DX{C}_{p}U"], **kwargs)
             return -COVUW*DXW_U
         elif varname in ["PUW5"] :
-            COVVW, DYW_U = self.get_data([p+"COVVW", p+"DYW_"+p+"U"], **kwargs)
+            COVVW, DYW_U = self.get_data([p+"COVVW", f"{p}DY{C}_{p}U"], **kwargs)
             return -COVVW*DYW_U
         elif varname in ["PUW6"] :
-            M2W, DZ_U = self.get_data(["M2W", "DZ_"+p+"U"], **kwargs)
+            M2W, DZ_U = self.get_data(["M2W", f"DZ_{p}U"], **kwargs)
             return -M2W*DZ_U
         elif varname in ["PVW1"] :
-            COVUV, DXW_W = self.get_data([p+"COVUV", p+"DXW_W"], **kwargs)
+            COVUV, DXW_W = self.get_data([p+"COVUV", f"{p}DX{C}_W"], **kwargs)
             return -COVUV*DXW_W
         elif varname in ["PVW2"] :
-            M2V, DYW_W = self.get_data([p+"M2V", p+"DYW_W"], **kwargs)
+            M2V, DYW_W = self.get_data([p+"M2V", f"{p}DY{C}_W"], **kwargs)
             return -M2V*DYW_W
         elif varname in ["PVW3"] :
             COVVW, DZ_W = self.get_data([p+"COVVW", "DZ_W"], **kwargs)
             return -COVVW*DZ_W
         elif varname in ["PVW4"] :
-            COVUW, DXW_V = self.get_data([p+"COVUW", p+"DXW_"+p+"V"], **kwargs)
+            COVUW, DXW_V = self.get_data([p+"COVUW", f"{p}DX{C}_{p}V"], **kwargs)
             return -COVUW*DXW_V
         elif varname in ["PVW5"] :
-            COVVW, DYW_V = self.get_data([p+"COVVW", p+"DYW_"+p+"V"], **kwargs)
+            COVVW, DYW_V = self.get_data([p+"COVVW", f"{p}DY{C}_{p}V"], **kwargs)
             return -COVVW*DYW_V
         elif varname in ["PVW6"] :
-            M2W, DZ_V = self.get_data(["M2W", "DZ_"+p+"V"], **kwargs)
+            M2W, DZ_V = self.get_data(["M2W", f"DZ_{p}V"], **kwargs)
             return -M2W*DZ_V
         
         # Advection = Rij,k Uk
         elif varname in ["AUU1", "AVV1"] :
-            U, DXW_M2U = self.get_data([p+"U", p+"DXW_"+p+"M2"+varname[1]], **kwargs)
+            U, DXW_M2U = self.get_data([p+"U", f"{p}DX{C}_{p}M2{varname[1]}"], **kwargs)
             return -U*DXW_M2U
         elif varname in ["AUU2", "AVV2"] :
-            V, DYW_M2U = self.get_data([p+"V", p+"DYW_"+p+"M2"+varname[1]], **kwargs)
+            V, DYW_M2U = self.get_data([p+"V", f"{p}DY{C}_{p}M2{varname[1]}"], **kwargs)
             return -V*DYW_M2U
         elif varname in ["AUU3", "AVV3"] :
-            W, DZ_M2U = self.get_data(["W", "DZ_"+p+"M2"+varname[1]], **kwargs)
+            W, DZ_M2U = self.get_data(["W", f"DZ_{p}M2{varname[1]}"], **kwargs)
             return -W*DZ_M2U
         elif varname in ["AWW1"] :
-            U, DXW_M2W = self.get_data([p+"U", p+"DXW_M2W"], **kwargs)
+            U, DXW_M2W = self.get_data([p+"U", f"{p}DX{C}_M2W"], **kwargs)
             return -U*DXW_M2W
         elif varname in ["AWW2"] :
-            V, DYW_M2W = self.get_data([p+"V", p+"DYW_M2W"], **kwargs)
+            V, DYW_M2W = self.get_data([p+"V", f"{p}DY{C}_M2W"], **kwargs)
             return -V*DYW_M2W
         elif varname in ["AWW3"] :
             W, DZ_M2W = self.get_data(["W", "DZ_M2W"], **kwargs)
             return -W*DZ_M2W
         elif varname in ["AUV1", "AUW1", "AVW1"] :
-            U, DXW_M2U = self.get_data([p+"U", p+"DXW_"+p+"COV"+varname[1:3]], **kwargs)
+            U, DXW_M2U = self.get_data([p+"U", f"{p}DX{C}_{p}COV{varname[1:3]}"], **kwargs)
             return -U*DXW_M2U
         elif varname in ["AUV2", "AUW2", "AVW2"] :
-            V, DYW_M2U = self.get_data([p+"V", p+"DYW_"+p+"COV"+varname[1:3]], **kwargs)
+            V, DYW_M2U = self.get_data([p+"V", f"{p}DY{C}_{p}COV{varname[1:3]}"], **kwargs)
             return -V*DYW_M2U
         elif varname in ["AUV3", "AUW3", "AVW3"] :
-            W, DZ_M2U = self.get_data(["W", "DZ_"+p+"COV"+varname[1:3]], **kwargs)
+            W, DZ_M2U = self.get_data(["W", f"DZ_{p}COV{varname[1:3]}"], **kwargs)
             return -W*DZ_M2U
         
         # Pressure transfer term
         elif varname in ["TUU"]:
-            RHO, DXW_COVUP = self.get_data(["RHO", p+"DXW_"+p+"COVUP"], **kwargs)
+            RHO, DXW_COVUP = self.get_data(["RHO", f"{p}DX{C}_{p}COVUP"], **kwargs)
             return -2*DXW_COVUP/RHO
         elif varname in ["TVV"]:
-            RHO, DYW_COVVP = self.get_data(["RHO", p+"DYW_"+p+"COVVP"], **kwargs)
+            RHO, DYW_COVVP = self.get_data(["RHO", f"{p}DY{C}_{p}COVVP"], **kwargs)
             return -2*DYW_COVVP/RHO
         elif varname in ["TWW"]:
             RHO, DZ_COVWP = self.get_data(["RHO", "DZ_COVWP"], **kwargs)
             return -2*DZ_COVWP/RHO
         elif varname in ["TUV"] :
-            RHO, DXW_COVVP, DYW_COVUP = self.get_data(["RHO", p+"DXW_"+p+"COVVP", p+"DYW_"+p+"COVUP"], **kwargs)
+            RHO, DXW_COVVP, DYW_COVUP = self.get_data(["RHO", f"{p}DX{C}_{p}COVVP", f"{p}DY{C}_{p}COVUP"], **kwargs)
             return -(DXW_COVVP + DYW_COVUP)/RHO
         elif varname in ["TUW"] :
-            RHO, DXW_COVWP, DZ_COVUP = self.get_data(["RHO", p+"DXW_COVWP", "DZ_"+p+"COVUP"], **kwargs)
+            RHO, DXW_COVWP, DZ_COVUP = self.get_data(["RHO", f"{p}DX{C}_{p}COVWP", f"DZ_{p}COVUP"], **kwargs)
             return -(DXW_COVWP + DZ_COVUP)/RHO
         elif varname in ["TVW"] :
-            RHO, DYW_COVWP, DZ_COVVP = self.get_data(["RHO", p+"DYW_COVWP", "DZ_"+p+"COVVP"], **kwargs)
+            RHO, DYW_COVWP, DZ_COVVP = self.get_data(["RHO", f"{p}DY{C}_COVWP", f"DZ_{p}COVVP"], **kwargs)
             return -(DYW_COVWP + DZ_COVVP)/RHO
         
         # Pressure transfer term
@@ -878,7 +884,6 @@ class DomWRF(Dom):
         
         # Subgrid term 1
         elif varname in ["GUU"]:
-            print("COVUS1*2")
             return 2*self.get_data("COVUS1", **kwargs)
         elif varname in ["GVV"]:
             return 2*self.get_data("COVVS2", **kwargs)
@@ -907,18 +912,18 @@ class DomWRF(Dom):
         
         # Exact turbulent diffusion of TKE
         elif varname in ["KUU"]:
-            return -2*self.get_data("COVUKE1", **kwargs)
+            return self.get_data("M3UUDIV", **kwargs)
         elif varname in ["KVV"]:
-            return -2*self.get_data("COVVKE2", **kwargs)
+            return self.get_data("M3VVDIV", **kwargs)
         elif varname in ["KWW"]:
-            return -2*self.get_data("COVWKE3", **kwargs)
+            return self.get_data("M3WWDIV", **kwargs)
         
         # Turbulent diffusion = <ui'uj'uk'>,k
         elif varname in ["DUU1", "DUU2", "DUU3", "DVV1", "DVV2", "DVV3", "DWW1", "DWW2", "DWW3"] :
             v1, v2 = varname[1], varname[2]
             i = int(varname[3])-1
             v3 = ["U", "V", "W"][i]
-            deriv = [p+"DXW_", p+"DYW_", p+"DZ_"][i]
+            deriv = [f"{p}DX{C}_", f"{p}DY{C}_", "DZ_"][i]
             temp = [v1, v2, v3]
             temp.sort() # M3UUW but not M3UWU
             M3 = "M3"+temp[0]+temp[1]+temp[2]
@@ -946,13 +951,13 @@ class DomWRF(Dom):
             #k,t = -<tau_ij.u_i>,j + <tau_ij.u_i,j> + <tau_ij>,j.<u_i>
             #k,t = -<tau_ij.u_i>,j + <tau_ij.D_ij> + <tau_ij>,j.<u_i>
             DIJTAUIJ = self.get_data("DIJTAUIJ_AVG", **kwargs)
-            DXW_UITAUI1, DYW_UITAUI2, DZ_UITAUI3 = self.get_data(["DXW_UITAUI1_AVG", "DYW_UITAUI2_AVG", "DZ_UITAUI3_AVG"], **kwargs)
+            DXW_UITAUI1, DYW_UITAUI2, DZ_UITAUI3 = self.get_data([f"DX{C}_UITAUI1_AVG", f"DY{C}_UITAUI2_AVG", "DZ_UITAUI3_AVG"], **kwargs)
             DXW_TAU11, DXW_TAU12, DXW_TAU13,\
             DYW_TAU12, DYW_TAU22, DYW_TAU23,\
             DZ_TAU13,  DZ_TAU23,  DZ_TAU33, = self.get_data(\
-            ["DXW_TAU11_AVG", "DXW_TAU12_AVG", "DXW_TAU13_AVG",\
-             "DYW_TAU12_AVG", "DYW_TAU22_AVG", "DYW_TAU23_AVG",\
-             "DZ_TAU13_AVG",  "DZ_TAU23_AVG",  "DZ_TAU33_AVG"], **kwargs)
+            [f"DX{C}_TAU11_AVG", f"DX{C}_TAU12_AVG", f"DX{C}_TAU13_AVG",\
+             f"DY{C}_TAU12_AVG", f"DY{C}_TAU22_AVG", f"DY{C}_TAU23_AVG",\
+              "DZ_TAU13_AVG",     "DZ_TAU23_AVG",     "DZ_TAU33_AVG"], **kwargs)
             U, V, W = self.get_data(["U", "V", "W"], **kwargs)
             return +0.5*DIJTAUIJ \
                     - (DXW_UITAUI1 + DYW_UITAUI2 + DZ_UITAUI3)\

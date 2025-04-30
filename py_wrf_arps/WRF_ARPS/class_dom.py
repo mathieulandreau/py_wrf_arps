@@ -1779,7 +1779,9 @@ class Dom():
         elif kwargs["avg"] and not varname.endswith("_AVG") :
             if varname[0] != "Q" :
                 print(self.prefix, "warning : searching ", varname+"_AVG instead of "+varname)
-            return self.get_data(varname+"_AVG", **kwargs)
+            new_kwargs = copy.copy(kwargs)
+            new_kwargs["save"] = False
+            return self.get_data(varname+"_AVG", **new_kwargs)
         elif varname in ["QC", "QR", "QI", "QS", "QH", "QG", "QC_AVG", "QR_AVG", "QI_AVG", "QS_AVG", "QH_AVG", "QG_AVG"]: #Will be called only if varname is not found in files
             return self.get_data("ZERO", **kwargs) #The default value is then 0
         print(self.prefix, "unkown varname in Dom.get_data : ", varname)
