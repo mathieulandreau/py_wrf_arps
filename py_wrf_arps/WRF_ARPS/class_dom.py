@@ -1026,12 +1026,16 @@ class Dom():
             self : Dom
             varname : str : name of the variable 
         Output
-            boolean : True if stress tensor bilan term variable, False otherwise, ex : PUU, PVW, AUU1, ...
+            boolean : True if stress tensor bilan term variable, False otherwise, ex : PUU, PVW, AUU1, PTKE or WPTKE, WPUU1, ...
         25/03/2024 : Mathieu LANDREAU
         """
-        return varname[0] in ["P", "A", "T", "D", "B", "S", "N", "R", "G", "K"] and (
+        return (
+            varname[0] in ["P", "A", "T", "D", "B", "S", "N", "R", "G", "K"] and (
                 len(varname) >= 4 and varname[1:4] == "TKE" or 
                 (len(varname) >= 3 and (varname[1] in ["U", "V", "W"] and varname[2] in ["U", "V", "W"]))
+            )
+        or
+            varname[0] in "W" and self.is_stress_tensor_bilan_term(varname[1:])
         )
         
     def find_axis(self, axis, dim=None, varname=None, time_slice=None, crop=None, i_unstag=None, itime=None, **kwargs):
@@ -1887,16 +1891,11 @@ class Dom():
         s = np.sin(angle_rad)
         c = np.cos(angle_rad)
         fac = 1
-        if varname1 in ["COVUV", "COVVU", "M2U", "M2V", "COVUW", "COVVW", "COVWU", "COVWV"] :
+        if varname1 in ["COVUV", "COVVU", "M2U", "M2V", "COVUW", "COVVW", "COVWU", "COVWV"] or varname1.startswith("COVU") or varname1.startswith("COVV"):
+            varname1 = "COVUW" if varname1 == "COVWU" else "COVVW" if varname1 == "COVWV" else varname1
             if varname.startswith("NORM_") or varname.startswith("DIR_"):
                 raise(Exception(f"error : norm and direction of {varname1} doesn't make sense"))
-            elif varname1 in ["COVUW", "COVWU", "COVVW", "COVWV"]:
-                COVUW, COVVW = self.get_data(["COVUW", "COVVW"], **kwargs)
-                if varname1 in ["COVUW", "COVWU"] :
-                    return -s*COVUW -c*COVVW
-                elif varname1 in ["COVVW", "COVWV"]  :
-                    return c*COVUW -s*COVVW
-            else :
+            elif varname in ["M2U", "M2V", "COVUV", "COVVU"]:
                 M2U, M2V, COVUV = self.get_data(["M2U", "M2V", "COVUV"], **kwargs)
                 if varname1 == "M2U" :
                     return M2U*s*s + M2V*c*c + 2*COVUV*c*s
@@ -1904,7 +1903,16 @@ class Dom():
                     return M2U*c*c + M2V*s*s - 2*COVUV*c*s
                 else :
                     return -M2U*c*s + M2V*c*s + COVUV*(s*s - c*c)
+            elif varname1.startswith("COVU") or varname1.startswith("COVV"):
+                COVU, COVV = self.get_data(["COVU"+varname1[4:], "COVV"+varname1[4:]], **kwargs)
+                if varname1.startswith("COVU") :
+                    return -s*COVU -c*COVV
+                elif varname1.startswith("COVV")  :
+                    return c*COVU -s*COVV
+            else:
+                raise(Exception("How did you get here ?"))
         if varname1.startswith("M3") :
+            # Note, cannot rotate the M3 with anything else than U, V, W for now
             # Einstein notation
             # Change of referential frame : vi = Ail.ul (sum on l in [1, 2, 3])
             # Then the product of 3 velocity components is : vi.vj.vk = Ail.ul.Ajm.um.Akn.un (sum on (l, m, n) in [1, 2, 3]^3)

@@ -715,7 +715,7 @@ class DomWRF(Dom):
         else : #Try to look in Dom.calculate_statistics
             return Dom.calculate_statistics(self, varname, **kwargs)
     
-    def calculate_stress_tensor_bilan_term(self, varname, p="", **kwargs) :
+    def calculate_stress_tensor_bilan_term(self, varname_in, p="", **kwargs) :
         """
         Description
             Calculate the terms of the stress tensor bilan (e.g. Deardorff 1980, https://doi.org/10.1007/BF00119502)
@@ -727,16 +727,24 @@ class DomWRF(Dom):
             kwargs : all the kwargs from get_data
         05/02/2025 : Mathieu LANDREAU
         """
-        C = "C"
+        if varname_in.startswith("W") :
+            W = "W" # calculate terms in WRF coordinates system (advection with omega, ...)
+            varname = varname_in[1:]
+            C = "W" # "W" = compute derivatives in WRF coordinate system
+        else :
+            W = ""
+            varname = varname_in
+            C = "C"  # "W" = compute derivatives in cartesian system
+            
         # P: shear production, A: advection, T:pressure transport, D: turbulent diffusion, B: buoyancy, N: Non-hydrostatic pressure transport, R: "exact" pressure transport
         if varname in ["PTKE", "ATKE", "TTKE", "DTKE", "BTKE", "NTKE", "RTKE", "GTKE", "KTKE"] : #total Production, Advection, pressure Transfer, turbulent Diffusion, Buoyancy, or Non-hydrostatic pressure
-            vUU, vVV, vWW = self.get_data([p+varname[0]+"UU", p+varname[0]+"VV", p+varname[0]+"WW"], **kwargs) 
+            vUU, vVV, vWW = self.get_data([p+W+varname[0]+"UU", p+W+varname[0]+"VV", p+W+varname[0]+"WW"], **kwargs) 
             return 0.5*(vUU+vVV+vWW)
         elif varname in ["PUU", "PVV", "PWW", "AUU", "AVV", "AWW", "AUV", "AUW", "AVW", "DUU", "DVV", "DWW", "DUV", "DUW", "DVW"] : #total production or advection or turbulent diffusion for 3 terms
-            v1, v2, v3 = self.get_data([p+varname+"1", p+varname+"2", p+varname+"3"], **kwargs) 
+            v1, v2, v3 = self.get_data([p+W+varname+"1", p+W+varname+"2", p+W+varname+"3"], **kwargs) 
             return v1 + v2 + v3
         elif varname in ["PUV", "PUW", "PVW"] : #total production for 6 terms
-            v1, v2, v3, v4, v5, v6 = self.get_data([p+varname+"1", p+varname+"2", p+varname+"3", p+varname+"5", p+varname+"5", p+varname+"6"], **kwargs) 
+            v1, v2, v3, v4, v5, v6 = self.get_data([p+W+varname+"1", p+W+varname+"2", p+W+varname+"3", p+W+varname+"5", p+W+varname+"5", p+W+varname+"6"], **kwargs) 
             return v1 + v2 + v3 + v4 + v5 + v6
         
         # Shear production : P = - Rik.Uj,k - Rij.Ui,k
@@ -748,7 +756,7 @@ class DomWRF(Dom):
             COVUV, DYW_U = self.get_data([p+"COVUV", f"{p}DY{C}_{p}U"], **kwargs)
             return -2*COVUV*DYW_U
         elif varname in ["PUU3"] : #i=j=1, k=3
-            COVUW, DZ_U = self.get_data([p+"COVUW", f"DZ_{p}U"], **kwargs)
+            COVUW, DZ_U = self.get_data([p+"COVUW", f"DZ_{p}U"], **kwargs) if W == "" else self.get_data([p+"COVUO", f"DETA_{p}U"], **kwargs)
             return -2*COVUW*DZ_U
         elif varname in ["PVV1"] : #i=j=2, k=1
             COVUV, DXW_V = self.get_data([p+"COVUV", f"{p}DX{C}_{p}V"], **kwargs)
@@ -757,7 +765,7 @@ class DomWRF(Dom):
             M2V, DYW_V = self.get_data([p+"M2V", f"{p}DY{C}_{p}V"], **kwargs)
             return -2*M2V*DYW_V
         elif varname in ["PVV3"] : #i=j=2, k=3
-            COVVW, DZ_V = self.get_data([p+"COVVW", f"DZ_{p}V"], **kwargs)
+            COVVW, DZ_V = self.get_data([p+"COVVW", f"DZ_{p}V"], **kwargs) if W == "" else self.get_data([p+"COVVO", f"DETA_{p}V"], **kwargs)
             return -2*COVVW*DZ_V
         elif varname in ["PWW1"] : #i=j=3, k=1
             COVUW, DXW_W = self.get_data([p+"COVUW", f"{p}DX{C}_W"], **kwargs)
@@ -766,13 +774,13 @@ class DomWRF(Dom):
             COVVW, DYW_W = self.get_data([p+"COVVW", f"{p}DY{C}_W"], **kwargs)
             return -2*COVVW*DYW_W
         elif varname in ["PWW3"] : #i=j=3, k=3
-            M2W, DZ_W = self.get_data(["M2W", "DZ_W"], **kwargs)
+            M2W, DZ_W = self.get_data(["M2W", "DZ_W"], **kwargs) if W == "" else self.get_data(["COVWO", "DETA_W"], **kwargs)
             return -2*M2W*DZ_W
             
         ## Non-diagonal terms
         elif varname in ["PUV1"] :
-            M2U, DXW_U = self.get_data([p+"M2U", f"{p}DX{C}_{p}U"], **kwargs)
-            return -M2U*DXW_U
+            M2U, DXW_V = self.get_data([p+"M2U", f"{p}DX{C}_{p}V"], **kwargs)
+            return -M2U*DXW_V
         elif varname in ["PUV2"] :
             COVUV, DYW_V = self.get_data([p+"COVUV", f"{p}DY{C}_{p}V"], **kwargs)
             return -COVUV*DYW_V
@@ -833,7 +841,7 @@ class DomWRF(Dom):
             V, DYW_M2U = self.get_data([p+"V", f"{p}DY{C}_{p}M2{varname[1]}"], **kwargs)
             return -V*DYW_M2U
         elif varname in ["AUU3", "AVV3"] :
-            W, DZ_M2U = self.get_data(["W", f"DZ_{p}M2{varname[1]}"], **kwargs)
+            W, DZ_M2U = self.get_data(["W", f"DZ_{p}M2{varname[1]}"], **kwargs) if W == "" else self.get_data(["O", f"DETA_{p}M2{varname[1]}"], **kwargs)
             return -W*DZ_M2U
         elif varname in ["AWW1"] :
             U, DXW_M2W = self.get_data([p+"U", f"{p}DX{C}_M2W"], **kwargs)
@@ -842,19 +850,19 @@ class DomWRF(Dom):
             V, DYW_M2W = self.get_data([p+"V", f"{p}DY{C}_M2W"], **kwargs)
             return -V*DYW_M2W
         elif varname in ["AWW3"] :
-            W, DZ_M2W = self.get_data(["W", "DZ_M2W"], **kwargs)
+            W, DZ_M2W = self.get_data(["W", "DZ_M2W"], **kwargs) if W == "" else self.get_data(["O", f"DETA_M2W"], **kwargs)
             return -W*DZ_M2W
         elif varname in ["AUV1", "AUW1", "AVW1"] :
-            U, DXW_M2U = self.get_data([p+"U", f"{p}DX{C}_{p}COV{varname[1:3]}"], **kwargs)
-            return -U*DXW_M2U
+            U, DXW_COV = self.get_data([p+"U", f"{p}DX{C}_{p}COV{varname[1:3]}"], **kwargs)
+            return -U*DXW_COV
         elif varname in ["AUV2", "AUW2", "AVW2"] :
-            V, DYW_M2U = self.get_data([p+"V", f"{p}DY{C}_{p}COV{varname[1:3]}"], **kwargs)
-            return -V*DYW_M2U
+            V, DYW_COV = self.get_data([p+"V", f"{p}DY{C}_{p}COV{varname[1:3]}"], **kwargs)
+            return -V*DYW_COV
         elif varname in ["AUV3", "AUW3", "AVW3"] :
-            W, DZ_M2U = self.get_data(["W", f"DZ_{p}COV{varname[1:3]}"], **kwargs)
-            return -W*DZ_M2U
+            W, DZ_COV = self.get_data(["W", f"DZ_{p}COV{varname[1:3]}"], **kwargs) if W == "" else self.get_data(["O", f"DETA_{p}COV{varname[1:3]}"], **kwargs)
+            return -W*DZ_COV
         
-        # Pressure transfer term
+        # Boussinesq pressure transfer term
         elif varname in ["TUU"]:
             RHO, DXW_COVUP = self.get_data(["RHO", f"{p}DX{C}_{p}COVUP"], **kwargs)
             return -2*DXW_COVUP/RHO
@@ -874,7 +882,7 @@ class DomWRF(Dom):
             RHO, DYW_COVWP, DZ_COVVP = self.get_data(["RHO", f"{p}DY{C}_COVWP", f"DZ_{p}COVVP"], **kwargs)
             return -(DYW_COVWP + DZ_COVVP)/RHO
         
-        # Pressure transfer term
+        # Total pressure transfer term (including buoyancy)
         elif varname in ["RUU"]:
             return -2*self.get_data("COVUALPG1", **kwargs)
         elif varname in ["RVV"]:
@@ -910,7 +918,7 @@ class DomWRF(Dom):
             RHO, DYW_COVWP, DZ_COVVP = self.get_data(["RHO", p+"DYW_COVWPNH", "DZ_"+p+"COVVPNH"], **kwargs)
             return -(DYW_COVWP + DZ_COVVP)/RHO
         
-        # Exact turbulent diffusion of TKE
+        # 2nd turbulent diffusion of TKE
         elif varname in ["KUU"]:
             return self.get_data("M3UUDIV", **kwargs)
         elif varname in ["KVV"]:
@@ -922,13 +930,21 @@ class DomWRF(Dom):
         elif varname in ["DUU1", "DUU2", "DUU3", "DVV1", "DVV2", "DVV3", "DWW1", "DWW2", "DWW3"] :
             v1, v2 = varname[1], varname[2]
             i = int(varname[3])-1
-            v3 = ["U", "V", "W"][i]
-            deriv = [f"{p}DX{C}_", f"{p}DY{C}_", "DZ_"][i]
-            temp = [v1, v2, v3]
-            temp.sort() # M3UUW but not M3UWU
+            if i == 2 and W == "W" :
+                i = 3
+            deriv = [f"{p}DX{C}_", f"{p}DY{C}_", "DZ_", "DETA_"][i]
+            if i < 3 :
+                v3 = ["U", "V", "W"][i]
+                temp = [v1, v2, v3]
+                temp.sort() # M3UUW but not M3UWU
+            else :
+                temp = [v1, v2]
+                temp.sort() # M3UUW but not M3UWU
+                temp.append("O")
             M3 = "M3"+temp[0]+temp[1]+temp[2]
-            if not v1==v2==v3=="W" :
+            if M3 not in ["M3WWW", "M3WWO"] :
                 M3 = p+M3
+            print(deriv+M3)
             return -self.get_data(deriv+M3, **kwargs)
         
         # Buoyancy : Bij = [gj <ui'theta_v'> + gi <uj' theta_v'>]/theta_v
@@ -944,24 +960,6 @@ class DomWRF(Dom):
         elif varname in ["BUU", "BVV", "BUV"] :
             return self.get_data("ZERO", **kwargs)
         
-        # Subgrid transfer
-        elif varname in ["STKE"] :
-            #k,t = -<tau_ij',j.u_i'>
-            #k,t = -<tau_ij'.u_i'>,j + <tau_ij'.u_i',j>
-            #k,t = -<tau_ij.u_i>,j + <tau_ij.u_i,j> + <tau_ij>,j.<u_i>
-            #k,t = -<tau_ij.u_i>,j + <tau_ij.D_ij> + <tau_ij>,j.<u_i>
-            DIJTAUIJ = self.get_data("DIJTAUIJ_AVG", **kwargs)
-            DXW_UITAUI1, DYW_UITAUI2, DZ_UITAUI3 = self.get_data([f"DX{C}_UITAUI1_AVG", f"DY{C}_UITAUI2_AVG", "DZ_UITAUI3_AVG"], **kwargs)
-            DXW_TAU11, DXW_TAU12, DXW_TAU13,\
-            DYW_TAU12, DYW_TAU22, DYW_TAU23,\
-            DZ_TAU13,  DZ_TAU23,  DZ_TAU33, = self.get_data(\
-            [f"DX{C}_TAU11_AVG", f"DX{C}_TAU12_AVG", f"DX{C}_TAU13_AVG",\
-             f"DY{C}_TAU12_AVG", f"DY{C}_TAU22_AVG", f"DY{C}_TAU23_AVG",\
-              "DZ_TAU13_AVG",     "DZ_TAU23_AVG",     "DZ_TAU33_AVG"], **kwargs)
-            U, V, W = self.get_data(["U", "V", "W"], **kwargs)
-            return +0.5*DIJTAUIJ \
-                    - (DXW_UITAUI1 + DYW_UITAUI2 + DZ_UITAUI3)\
-                    + ((DXW_TAU11 + DYW_TAU12 + DZ_TAU13)*U + (DXW_TAU12 + DYW_TAU22 + DZ_TAU23)*V  + (DXW_TAU13 + DYW_TAU23 + DZ_TAU33)*W)
         else : 
             raise(Exception(f"Unknown stress tensor bilan term : {varname}, check the is_stress_tensor_bilan_term function"))
 
@@ -1095,18 +1093,21 @@ class DomWRF(Dom):
                 return DTW_var
             else : 
                 DTW_ZP = self.get_data("DTW_ZP", **kwargs)
-                DETA_ZP = self.get_data("DETA_ZP", **kwargs)
-                DETA_var = self.get_data("DETA_"+varname2, **kwargs)
-                if debug : print(self.prefix, "DTC", DTW_var.shape, DTW_ZP.shape, DETA_var.shape, DETA_ZP.shape)
-                return DTW_var - DTW_ZP*DETA_var/DETA_ZP
+                # DETA_ZP = self.get_data("DETA_ZP", **kwargs)
+                # DETA_var = self.get_data("DETA_"+varname2, **kwargs)
+                # if debug : print(self.prefix, "DTC", DTW_var.shape, DTW_ZP.shape, DETA_var.shape, DETA_ZP.shape)
+                # return DTW_var - DTW_ZP*DETA_var/DETA_ZP
+                DZ_var = self.get_data("DZ_"+varname2, **kwargs)
+                if debug : print(self.prefix, "DTC", DTW_var.shape, DTW_ZP.shape, DZ_var.shape)
+                return DTW_var - DTW_ZP*DZ_var
             
         #Z derivative in cartesian referential frame (t, x, y, z)
-        elif varname.startswith("DZ_") : 
-            varname2 = varname[3:]
-            DETA_ZP = self.get_data("DETA_ZP", **kwargs)
-            DETA_var = self.get_data("DETA_"+varname2, **kwargs)
-            if debug : print(self.prefix, "DZ", DETA_var.shape, DETA_ZP.shape)
-            return DETA_var/DETA_ZP
+        # elif varname.startswith("DZ_") : 
+        #     varname2 = varname[3:]
+        #     DETA_ZP = self.get_data("DETA_ZP", **kwargs)
+        #     DETA_var = self.get_data("DETA_"+varname2, **kwargs)
+        #     if debug : print(self.prefix, "DZ", DETA_var.shape, DETA_ZP.shape)
+        #     return DETA_var/DETA_ZP
         
         #Y derivative in cartesian referential frame (t, x, y, z)
         elif varname.startswith("DYC_") : 
@@ -1116,10 +1117,13 @@ class DomWRF(Dom):
                 return DYW_var
             else : 
                 DYW_ZP = self.get_data("DYW_ZP", **kwargs)
-                DETA_ZP = self.get_data("DETA_ZP", **kwargs)
-                DETA_var = self.get_data("DETA_"+varname2, **kwargs)
-                if debug : print(self.prefix, "DYC", DYW_var.shape, DYW_ZP.shape, DETA_var.shape, DETA_ZP.shape)
-                return DYW_var - DYW_ZP*DETA_var/DETA_ZP
+                # DETA_ZP = self.get_data("DETA_ZP", **kwargs)
+                # DETA_var = self.get_data("DETA_"+varname2, **kwargs)
+                # if debug : print(self.prefix, "DYC", DYW_var.shape, DYW_ZP.shape, DETA_var.shape, DETA_ZP.shape)
+                # return DYW_var - DYW_ZP*DETA_var/DETA_ZP
+                DZ_var = self.get_data("DZ_"+varname2, **kwargs)
+                if debug : print(self.prefix, "DYC", DYW_var.shape, DYW_ZP.shape, DZ_var.shape)
+                return DYW_var - DYW_ZP*DZ_var
             
         #X derivative in cartesian referential frame (t, x, y, z)
         elif varname.startswith("DXC_") :
@@ -1129,10 +1133,13 @@ class DomWRF(Dom):
                 return DXW_var
             else : 
                 DXW_ZP = self.get_data("DXW_ZP", **kwargs)
-                DETA_ZP = self.get_data("DETA_ZP", **kwargs)
-                DETA_var = self.get_data("DETA_"+varname2, **kwargs)
-                if debug : print(self.prefix, "DXC", DXW_var.shape, DXW_ZP.shape, DETA_var.shape, DETA_ZP.shape)
-                return DXW_var - DXW_ZP*DETA_var/DETA_ZP
+                # DETA_ZP = self.get_data("DETA_ZP", **kwargs)
+                # DETA_var = self.get_data("DETA_"+varname2, **kwargs)
+                # if debug : print(self.prefix, "DXC", DXW_var.shape, DXW_ZP.shape, DETA_var.shape, DETA_ZP.shape)
+                # return DXW_var - DXW_ZP*DETA_var/DETA_ZP
+                DZ_var = self.get_data("DZ_"+varname2, **kwargs)
+                if debug : print(self.prefix, "DXC", DXW_var.shape, DXW_ZP.shape, DZ_var.shape)
+                return DXW_var - DXW_ZP*DZ_var
         
         #call mother class Dom.calculate_derivative
         else : 
