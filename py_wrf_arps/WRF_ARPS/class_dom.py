@@ -2,7 +2,7 @@
 import sys
 from . import *
 from ..class_variables import *
-from ..lib import manage_display, manage_time, manage_projection, manage_GW, manage_angle, manage_scipy, manage_images, constants
+from ..lib import manage_display, manage_time, manage_projection, manage_GW, manage_angle, manage_scipy, manage_images, constants, manage_list
 
 from collections.abc import Iterable
 import os
@@ -354,7 +354,7 @@ class Dom():
 #################################################################################################################################
 ######  Get data 
 #################################################################################################################################  
-    def get_data(self, varname, itime = None, time_slice = None, crop = None, zoom=None, i_unstag = None, hinterp=None, vinterp=None, DX_smooth=None, n_procs=1, avg=None, avg_time=None, avg_area=None, sigma=50, squeeze=True, avg_stats=True, avg_deriv=True, saved=None, save=True, print_level=0, return_val=True):
+    def get_data(self, varname, itime = None, time_slice = None, crop = None, zoom=None, i_unstag = None, hinterp=None, vinterp=None, DX_smooth=None, n_procs=1, avg=None, avg_time=None, avg_area=None, sigma=50, squeeze=True, avg_stats=True, avg_deriv=True, quick_deriv=False, saved=None, save=True, print_level=0, return_val=True):
         """
         Description
             Get data thanks to variable name and time
@@ -406,6 +406,9 @@ class Dom():
             avg_stats (boolean): 
                 if True : The time_avg is not computed on the output variable but on variables named XX_AVG read in output files. Therefore, the covariances are not averaged but the 1st and 2nd order non-centered moments are averaged. The derivatives are not averaged as well but are computed from averaged variables, ...
                           The avg_area, dx_smooth, 
+            quick_deriv (boolean) : 
+                False : always compute centered derivatives (if you want to load DX_U in a cropped area (cropz, cropy, [20, 30]), it will read U in (cropz, cropy, [19, 31])
+                True : compute non-centered derivatives at the edge of the selected area (save a lot of space and time if you load many variables in a huge area)
             sigma (float) : kernel size in kilometer for landmask, coast orientation, ... It is used in sea-breeze and cross-coast velocities, ...
             squeeze (boolean) : if True, the dimensions of size 1 are squeezed. Default is True
             saved : dict : Saved can help to save a lot of time. Every intermediate variable used in the calculation is saved in this dictionary. If a dictionary is passed as argument out of the function, the user can have access to these variable. In the following example, since U and V are needed to calculate both MH and WD, the calculation of WD will be faster with saved :
@@ -475,7 +478,7 @@ class Dom():
                              or self.is_derivative(varname, avg_deriv))
             
             kw_get = dict(time_slice=time_slice, crop=crop, i_unstag=i_unstag, avg=avg, avg_time=avg_time, DX_smooth=DX_smooth, n_procs=n_procs, sigma=sigma, 
-                          saved=saved, squeeze=False, avg_stats=avg_stats, avg_deriv=avg_deriv, save=save, print_level=print_level)
+                          saved=saved, squeeze=False, avg_stats=avg_stats, avg_deriv=avg_deriv, quick_deriv=quick_deriv, save=save, print_level=print_level)
             # Averaging, filtering and interpolation
             if avg_area is not None and not avg_before and self.get_dim(varname) > 1 :
                 if debug or print_this : print(self.prefix, "avg_area varname =", varname, " avg_area = ", avg_area)
@@ -519,7 +522,7 @@ class Dom():
         elif type(varname) in (list, tuple, np.array, np.ndarray) :
             out = ()
             for varname_i in varname :
-                out = out + (self.get_data(varname_i, itime=itime, time_slice=time_slice, crop=crop, zoom=zoom, i_unstag=i_unstag, hinterp=hinterp, vinterp=vinterp, DX_smooth=DX_smooth, n_procs=n_procs, avg=avg, avg_time=avg_time, avg_area=avg_area, sigma=sigma, squeeze=np.copy(squeeze), avg_stats=avg_stats, avg_deriv=avg_deriv, saved=saved, save=save, print_level=print_level, return_val=return_val),)
+                out = out + (self.get_data(varname_i, itime=itime, time_slice=time_slice, crop=crop, zoom=zoom, i_unstag=i_unstag, hinterp=hinterp, vinterp=vinterp, DX_smooth=DX_smooth, n_procs=n_procs, avg=avg, avg_time=avg_time, avg_area=avg_area, sigma=sigma, squeeze=np.copy(squeeze), avg_stats=avg_stats, avg_deriv=avg_deriv, quick_deriv=quick_deriv, saved=saved, save=save, print_level=print_level, return_val=return_val),)
             return out if return_val else None
         else :
             raise(Exception("error, unknown type for varname in Dom.get_data : " + str(type(varname)) + ", varname = " + varname))
@@ -636,9 +639,9 @@ class Dom():
         data_smooth = manage_scipy.my_gaussian_filter(data, sigma=sigma_mask, truncate=truncate, axes=(-2, -1)) #see lib.manage_scipy
         
         #To get faster if several time the same variables in different kw_get
-        if not "after_smooth" in saved :
-            saved["after_smooth"] = {}
-        saved["after_smooth"][varname] = data_smooth
+        # if not "after_smooth" in saved :
+        #     saved["after_smooth"] = {}
+        # saved["after_smooth"][varname] = data_smooth
         
         if debug : print(self.prefix, "smooth before crop : varname :", varname, ", shape :", data_smooth.shape)
         #crop after
@@ -1030,7 +1033,7 @@ class Dom():
         25/03/2024 : Mathieu LANDREAU
         """
         return (
-            varname[0] in ["P", "A", "T", "D", "B", "S", "N", "R", "G", "K"] and (
+            varname[0] in ["P", "A", "T", "D", "B", "S", "N", "R", "G", "K", "Z"] and (
                 len(varname) >= 4 and varname[1:4] == "TKE" or 
                 (len(varname) >= 3 and (varname[1] in ["U", "V", "W"] and varname[2] in ["U", "V", "W"]))
             )
@@ -1526,6 +1529,17 @@ class Dom():
             ZP, T, P, QV = self.get_data(["ZP", "T", "P", "QV"], **kwargs_slp)
             print(self.prefix, ZP.shape, T.shape, P.shape, QV.shape)
             return wrf_slp(ZP, T, P, QV)*100
+        elif varname in ["PSL24"]:
+            # PSL averaged over 1 day (t-12h, t+12h)
+            print("warning : this function return PSL24 for every time at every location. It takes some time to calculate, \
+                  you should better write_postproc of PSL (timestep by timestep) and then of PSL24 (all together)\n\
+                  Then, it will be cropped and selected as usual")
+            PSL = self.get_data("PSL", itime="ALL_TIMES")
+            return manage_list.moving_average2(PSL, axis=0)
+        elif varname in ["PSLD"] :
+            # Deviation of PSL from PSL24
+            PSL, PSL24 = self.get_data(["PSL", "PSL24"], **kwargs)
+            return PSL-PSL24
         elif varname in ["AVO", "PVO"] :
             #Horizontal Vorticity : it can be added using the following method :
             raise(Exception("https://github.com/NCAR/wrf-python/blob/develop/fortran/wrf_pvo.f90"))
@@ -1651,6 +1665,30 @@ class Dom():
                 dPdx,dPdy = self.get_data(["DXC_P"+varname[3:],"DYC_P"+varname[3:]], **kwargs)
                 WDG = manage_angle.UV2WD_deg(-dPdy, dPdx)
                 return WDG
+        elif varname in ["PBARO"]:
+            NZ = self.get_data("NZ")
+            Z1 = 1500
+            kwargs_Z1 = copy.copy(kwargs)
+            kwargs_Z1["saved"] = {}
+            kwargs_Z1["hinterp"] = {"levels" : Z1,}
+            P1 = self.get_data("P", **kwargs_Z1)
+            cropz, cropy, cropx = kwargs["crop"]
+            if cropz == [0, NZ] :
+                kwargs_Z = kwargs
+            else :
+                kwargs_Z = copy.copy(kwargs)
+                kwargs_Z["saved"] = {}
+                kwargs_Z["crop"] = [[0, NZ], cropy, cropx]
+            T, ZP, DZ = self.get_data(["T", "ZP", "DZ"], **kwargs_Z)
+            zaxis = self.find_axis("z", dim=3, **kwargs_Z)
+            iz = np.expand_dims(np.nanargmin(np.abs(Z1 - ZP), axis=zaxis), axis=zaxis)
+            A = np.cumsum(DZ/T, axis=zaxis) - 0.5*DZ/T #correction middle of the cell
+            A = A - np.take_along_axis(A, iz, axis=zaxis)
+            DZiz = np.take_along_axis(ZP, iz, axis=zaxis) - Z1
+            Tiz = np.take_along_axis(T, iz, axis=zaxis)
+            A = A + DZiz/Tiz
+            A *= -constants.G/constants.RD
+            return np.take(P1*(np.exp(A)-1), np.arange(cropz[0], cropz[1]), axis=zaxis)
         elif varname in ["X2DV", "X2DV_KM"] :
             KM = varname.endswith("_KM")
             return self.get_X_for_vinterp(kwargs, KM=KM)
@@ -1733,12 +1771,11 @@ class Dom():
             return self.get_Z_SB_LB(CC_U, Z, typ=varname[-2:], zaxis=zaxis)
         elif varname in ["SBZC", "LBZC", "CIBLZC", "SIBLZC"] :
             crop = kwargs["crop"]
-            if crop[0] in ["ALL", [0, self.get_data("NZ")]] and kwargs["hinterp"] is None :
+            if crop[0] in ["ALL", [0, self.get_data("NZ")]] or (type(crop[0]) is list and crop[0][0] == 0 and crop[0][1] > 10) :
                 new_kwargs = kwargs
             else :
                 new_kwargs = copy.deepcopy(kwargs)
                 new_kwargs["crop"] = ("ALL", crop[1], crop[2]) 
-                new_kwargs["hinterp"] = None
                 new_kwargs["saved"] = {}
             Z = self.get_data("Z", **new_kwargs)
             zaxis = self.find_axis("z", dim=3, **new_kwargs)
@@ -2011,13 +2048,13 @@ class Dom():
             it1 = it_list[0]
             it2 = it_list[-1]
             dit = it_list[1] - it_list[0] if it2 > it1 else 1
-            if it1 < dit :
+            if it1 < dit or kwargs["quick_deriv"]:
                 adjust_first = True
                 new_it1 = it1
             else :
                 adjust_first = False
                 new_it1 = it1 - dit
-            if it2 >= self.get_data("NT_HIST")-dit :
+            if it2 >= self.get_data("NT_HIST")-dit or kwargs["quick_deriv"] :
                 adjust_last = True
                 new_it2 = it2
             else :
@@ -2082,13 +2119,13 @@ class Dom():
             varname2 = varname[3:]
             cropz, cropy, cropx = kwargs["crop"]
             cropz1, cropz2 = cropz
-            if cropz1 == 0 :
+            if cropz1 == 0  or kwargs["quick_deriv"] :
                 adjust_first = True
                 new_cropz1 = cropz1
             else :
                 adjust_first = False
                 new_cropz1 = cropz1 - 1
-            if cropz2 == self.get_data("NZ") :
+            if cropz2 == self.get_data("NZ") or kwargs["quick_deriv"] :
                 adjust_last = True
                 new_cropz2 = cropz2
             else :
@@ -2159,13 +2196,13 @@ class Dom():
             else :
                 cropx1, cropx2 = cropx
                 
-            if cropx1 == 0 :
+            if cropx1 == 0 or kwargs["quick_deriv"] :
                 adjust_first = True
                 new_cropx1 = cropx1
             else :
                 adjust_first = False
                 new_cropx1 = cropx1 - 1
-            if cropx2 == self.get_data("NX") :
+            if cropx2 == self.get_data("NX") or kwargs["quick_deriv"] :
                 adjust_last = True
                 new_cropx2 = cropx2
             else :
@@ -2228,13 +2265,13 @@ class Dom():
                 cropy2 = cropy+1
             else :
                 cropy1, cropy2 = cropy
-            if cropy1 == 0 :
+            if cropy1 == 0 or kwargs["quick_deriv"] :
                 adjust_first = True
                 new_cropy1 = cropy1
             else :
                 adjust_first = False
                 new_cropy1 = cropy1 - 1
-            if cropy2 == self.get_data("NY") :
+            if cropy2 == self.get_data("NY") or kwargs["quick_deriv"] :
                 adjust_last = True
                 new_cropy2 = cropy2
             else :

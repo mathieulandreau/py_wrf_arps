@@ -58,3 +58,25 @@ def unstag(vec, dim = 0):
         print("unknown dim, unstag with dim=0")
         return unstag(vec, 0)
 
+def moving_average(a, n, axis=0):
+    # source : https://python.plainenglish.io/how-to-avoid-to-drop-the-edge-of-the-data-at-moving-averaging-python-tutorial-5d243ee8efff
+    padded = np.apply_along_axis(np.pad, axis, a, (n//2, n-1-n//2), mode='edge')
+    kernel = np.ones(n) / n
+    return np.apply_along_axis(np.convolve, axis=axis, arr=padded, v=kernel, mode='valid')
+    
+def moving_average2(a, n, axis=0):
+    a2 = moving_average(a, n, axis)
+    if axis==0 :
+        a2[:n//2] = a2[n//2:n//2+1]
+        a2[-n//2:] = a2[-n//2:-n//2+1]
+    if axis==1 :
+        a2[:,:n//2] = a2[:,n//2:n//2+1]
+        a2[:,-n//2:] = a2[:,-n//2:-n//2+1]
+    if axis==2 :
+        a2[:,:,:n//2] = a2[:,:,n//2:n//2+1]
+        a2[:,:,-n//2:] = a2[:,:,-n//2:-n//2+1]
+    if axis==3 :
+        a2[:,:,:,:n//2] = a2[:,:,:,n//2:n//2+1]
+        a2[:,:,:,-n//2:] = a2[:,:,:,-n//2:-n//2+1]
+    return a2
+        

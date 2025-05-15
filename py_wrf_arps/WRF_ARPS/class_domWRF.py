@@ -737,7 +737,7 @@ class DomWRF(Dom):
             C = "C"  # "W" = compute derivatives in cartesian system
             
         # P: shear production, A: advection, T:pressure transport, D: turbulent diffusion, B: buoyancy, N: Non-hydrostatic pressure transport, R: "exact" pressure transport
-        if varname in ["PTKE", "ATKE", "TTKE", "DTKE", "BTKE", "NTKE", "RTKE", "GTKE", "KTKE"] : #total Production, Advection, pressure Transfer, turbulent Diffusion, Buoyancy, or Non-hydrostatic pressure
+        if varname in ["PTKE", "ATKE", "TTKE", "DTKE", "BTKE", "NTKE", "RTKE", "GTKE", "KTKE", "ZTKE"] : #total Production, Advection, pressure Transfer, turbulent Diffusion, Buoyancy, or Non-hydrostatic pressure
             vUU, vVV, vWW = self.get_data([p+W+varname[0]+"UU", p+W+varname[0]+"VV", p+W+varname[0]+"WW"], **kwargs) 
             return 0.5*(vUU+vVV+vWW)
         elif varname in ["PUU", "PVV", "PWW", "AUU", "AVV", "AWW", "AUV", "AUW", "AVW", "DUU", "DVV", "DWW", "DUV", "DUW", "DVW"] : #total production or advection or turbulent diffusion for 3 terms
@@ -890,6 +890,14 @@ class DomWRF(Dom):
         elif varname in ["RWW"]:
             return -2*self.get_data("COVWALPG3", **kwargs)
         
+        # Estimation implicit diffusion
+        elif varname in ["ZUU"]:
+            return -(self.get_data("M2U", **kwargs)**1.5)/self.get_data("DX", **kwargs)
+        elif varname in ["ZVV"]:
+            return -(self.get_data("M2V", **kwargs)**1.5)/self.get_data("DY", **kwargs)
+        elif varname in ["ZWW"]:
+            return -(self.get_data("M2W", **kwargs)**1.5)/self.get_data("DZ", **kwargs)
+        
         # Subgrid term 1
         elif varname in ["GUU"]:
             return 2*self.get_data("COVUS1", **kwargs)
@@ -1019,13 +1027,13 @@ class DomWRF(Dom):
             varname2 = varname[5:]
             cropz, cropy, cropx = kwargs["crop"]
             cropz1, cropz2 = cropz
-            if cropz1 == 0 :
+            if cropz1 == 0 or kwargs["quick_deriv"] :
                 adjust_first = True
                 new_cropz1 = cropz1
             else :
                 adjust_first = False
                 new_cropz1 = cropz1 - 1
-            if cropz2 == self.get_data("NZ") :
+            if cropz2 == self.get_data("NZ") or kwargs["quick_deriv"] :
                 adjust_last = True
                 new_cropz2 = cropz2
             else :
