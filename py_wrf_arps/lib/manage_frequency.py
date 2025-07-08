@@ -2,7 +2,7 @@ import numpy as np
 import scipy
 import datetime
 import matplotlib.pyplot as plt
-from ..lib.manage_time import *
+from ..lib import manage_time 
 
 
 def welch(TIME, U, window_minutes=30) :

@@ -1,6 +1,6 @@
 import numpy as np
 
-METEO_FRANCE_LIST = ["TAL", "CHE", "NOI", "YEU", "NAZ"]
+METEO_FRANCE_LIST = ["TAL", "CHE", "NOI", "YEU", "NAZ", "NOE"]
 DICT_EXPE_DATE = {
 #   code  : index, nom,                        lat °N,  lon °E,  grandeur, [start-end] date
     "CAR" : ( 1, "CARDINAUX WM",              [47.321,  -2.835], ("U"), ["2016-04-01", "2018-06-01", "2021-03-01", "2022-04-01"], [0.4, 0.4, 1] ),
@@ -26,6 +26,7 @@ DICT_EXPE_DATE = {
     "NAZ" : (21, "ST NAZAIRE AERO",           [47.314,  -2.154], ("U"), None, None ),
     "DIN" : (32, "DINARD AERO",               [48.585,  -2.076], ("U"), None, None ),
     "LI1" : (34, "LIDAR CROISIC",             [47.273,  -2.516], ("RWS"), None, None ),
+    "NOE" : (35, "LA-NOE-BLANCHE",            [47.780,  -1.765], ("U"), None, None ),
     "ARO" : (80, "DONNEES AROME TELEM",       [47.294,  -3.218], ("U"), ["2016-01-01", "2022-12-31"], [0.6, 0.8, 1] ),
     "CP1" : (96, "CRO TERRE +20KM",           [47.400,  -2.328], ("U"), None, None ),
     "CP1" : (96, "CRO TERRE +20KM",           [47.400,  -2.328], ("U"), None, None ),

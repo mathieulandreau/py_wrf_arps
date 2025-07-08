@@ -4,8 +4,8 @@ from .class_expe import Expe
 from ..lib import manage_time, manage_angle, manage_path
 
 import numpy as np
+import os
 import pandas
-from datetime import datetime, timedelta
 
 class Expe_MF(Expe):
     #code Meteo France for each location
@@ -15,6 +15,7 @@ class Expe_MF(Expe):
         "TAL" : 56009001,
         "YEU" : 85113001,
         "NOI" : 85163001,
+        "NOE" : 35202001,
     }
     
     def __init__(self, code):
@@ -22,23 +23,30 @@ class Expe_MF(Expe):
         super().__init__()
         
     def get_output_filenames(self):
+        self.filename_list = []
         folder_list = manage_path.MF_folder_list
         for folder in folder_list :
             if os.path.exists(folder) :
                 self.folder = folder
-        count = 0
+        self.count = 0
         for filename in os.listdir(self.folder):
             self.filename = self.folder+filename
-            count += 1
-        if count != 1 :
-            print("error in Expe_MF : There is not a single file in MeteoFrance folder, there is ,", count, "file(s)")
-            raise
+            self.filename_list.append(self.filename)
+            self.count += 1
+        if self.count != 1 :
+            print("warning in Expe_MF : There is not a single file in MeteoFrance folder, there is ,", self.count, "file(s)")
             
     def get_other_params(self):
         self.poste = self.postes_dict[self.code]
-        df = pandas.read_csv(self.filename, sep=";")
         print(self.poste)
-        df = df[df["POSTE"] == self.poste]
+        print(self.filename_list)
+        for filename in self.filename_list :
+            df = pandas.read_csv(filename, sep=";")
+            df = df[df["POSTE"] == self.poste]
+            print(len(df))
+            if len(df) > 0 :
+                self.filename = filename
+                break
         self.df = df
         DATE = np.array(df["DATE"]).astype("str")
         self.date_list = np.array(manage_time.to_datetime(DATE, fmt="%Y%m%d%H"))
@@ -46,8 +54,8 @@ class Expe_MF(Expe):
         self.max_time_correction = manage_time.to_datetime64(self.date_list[1]) - manage_time.to_datetime64(self.date_list[0])
         self.PSFC = np.array(df["PSTAT"])*100 #convert from hPa to Pa
         self.T2_C = np.array(df["T"])
-        self.MH10 = np.array(df["U"])
-        self.WD10 = manage_angle.anglerad(np.array(df["GLO"]))
+        self.MH10 = np.array(df["FF"])
+        self.WD10 = manage_angle.anglerad(np.array(df["DD"]))
     
     def get_data(self, varname, itime="ALL_TIMES", time_slice=None, crop=None, **kwargs):
         if time_slice is None :
@@ -56,7 +64,7 @@ class Expe_MF(Expe):
         if varname in ["TIME"]:
             return self.date_list[time_slice]
         elif varname in ["T2_C", "T2_AVG_C"]:
-            return self.T2[time_slice]
+            return self.T2_C[time_slice]
         elif varname in ["T2"]:
             T2_C = self.get_data("T2_C", itime=itime, time_slice=time_slice)
             return Celsius2Kelvin(T2_C)

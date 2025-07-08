@@ -1,4 +1,5 @@
 import copy
+import pickle 
 
 def select_params(d1, d2, depth=5000):
     for k in d2 :
@@ -39,4 +40,13 @@ def print_dict(d, title=None, prefix=""):
     if title is not None :
         print("---------------------------END", title)
                 
-    
+def save_dict(d, savepath, force=False):
+    if os.path.exists(savepath) and not force :
+        print(savepath, "already exists, use force=True to overwrite")
+    else :
+        with open(savepath, 'wb') as f:
+            pickle.dump(d, f)
+        
+def read_dict(d, savepath):
+    with open(savepath, 'rb') as f:
+        return pickle.load(f)

@@ -61,6 +61,7 @@ class Dom():
             'soil': False,
             'stats': False,
             'post': False,
+            'post_static': False,
             'df': False,
             "diag" : False,
             "diag2" : False,
@@ -236,6 +237,8 @@ class Dom():
             self.max_time_correction = np.timedelta64(1000, 'D')
         self.date_list = np.array(self.date_list)
         if not manage_time.is_regular(self.date_list) : 
+            print("---", self.name)
+            print(manage_time.find_missing_date(self.date_list))
             raise(Exception(f"non-regular date_list"))
         self.VARIABLES["DT_HIST"] = VariableSave("", "", "", "", 0, DT_HIST)
         self.VARIABLES["NT_HIST"] = VariableSave("", "", "", "", 0, NT_HIST)
@@ -834,7 +837,7 @@ class Dom():
         if self.is_Pressure(varname) : data = np.exp(data)
         return np.array(data)
     
-    def prepare_crop_for_get(self, crop, varname) :
+    def prepare_crop_for_get(self, crop, varname=None) :
         """
         Decription
             Prepare crop. The function is called in self.get_data so that all crop values are lists
@@ -849,9 +852,9 @@ class Dom():
         Output
             new crop
         """
-        if "ZSTAG" in varname :
+        if varname is not None and "ZSTAG" in varname :
             NZ = self.VARIABLES["NZ_ZSTAG"].value
-        elif "SOIL" in varname or varname in ["TSLB", "SMOIS"] :
+        elif varname is not None and ("SOIL" in varname or varname in ["TSLB", "SMOIS"]) :
             NZ = 4
         else :
             NZ = self.VARIABLES["NZ"].value
@@ -1711,24 +1714,37 @@ class Dom():
             self.VARIABLES[varname] = VariableSave("Distance from coast", "Distance from coast", "m", "m", 2, COASTDIST, cmap=0)
             return self.get_data(varname, **kwargs) #call again get data, if ever there is a crop, it will be done in VariableSave
         elif varname in ["COR", "CGX", "CGY"] : #COAST_ORIENT, landmask_gradient,
-            sigma = int(kwargs["sigma"])
+            sigma = int(kwargs["sigma"]*1000)
             sigma_str = str(sigma)
             if not varname+sigma_str in self.VARIABLES : 
                 LANDMASK = self.get_data("LANDMASK")
                 DX = self.get_data("DX")
-                COR, CGX, CGY = manage_images.get_COAST_ORIENT2(LANDMASK, DX=DX, sigma=sigma*1000)
+                COR, CGX, CGY = manage_images.get_COAST_ORIENT2(LANDMASK, DX=DX, sigma=sigma)
                 self.VARIABLES["COR"+sigma_str] = VariableSave("Coast orientation", "Coast orientation", "°", "°", 2, COR, cmap=2)
                 self.VARIABLES["CGX"+sigma_str] = VariableSave("Coast x gradient", "Coast x gradient", "", "", 2, CGX, cmap=3)
                 self.VARIABLES["CGY"+sigma_str] = VariableSave("Coast y gradient", "Coast y gradient", "", "", 2, CGY, cmap=3)
             return self.get_data(varname+sigma_str, **kwargs) #call again get data, if ever there is a crop, it will be done in VariableSave
+        elif varname in ["CDI_SIGMA"] : #COAST_ORIENT, landmask_gradient,LANDMASK2 = self.get_data("LANDMASK2") #on continental mask (no islands)
+            sigma = int(kwargs["sigma"]*1000)
+            sigma_str = str(sigma)
+            if not "CDI"+sigma_str in self.VARIABLES : 
+                LANDMASK2 = self.get_data("LANDMASK_SIGMA", sigma=sigma/1000) #on continental mask (no islands)
+                LANDMASK2[LANDMASK2 > 0.5] = 1
+                LANDMASK2[LANDMASK2 <= 0.5] = 0
+                LANDMASK2 = LANDMASK2.astype(int)
+                X = self.get_data("X_KM")
+                Y = self.get_data("Y_KM")
+                CDI_SIGMA = manage_images.get_COASTDIST2(LANDMASK2, X, Y)
+                self.VARIABLES["CDI"+sigma_str] = VariableSave("Distance from coast sigma="+sigma_str, "CDI"+sigma_str, "m", "m", 2, CDI_SIGMA, cmap=0)
+            return self.get_data("CDI"+sigma_str, **kwargs) #call again get data, if ever there is a crop, it will be done in VariableSave
         elif varname in ["LANDMASK_SIGMA"] :
             #Blurry landmask with a gaussian filter
-            sigma = int(kwargs["sigma"])
+            sigma = int(kwargs["sigma"]*1000)
             sigma_str = str(sigma)
             if not varname+sigma_str in self.VARIABLES : 
                 LANDMASK = self.get_data("LANDMASK")
                 DX = self.get_data("DX")
-                LANDMASK_SIGMA = manage_images.get_LANDMASK_SIGMA(LANDMASK, DX=DX, sigma=sigma*1000)
+                LANDMASK_SIGMA = manage_images.get_LANDMASK_SIGMA(LANDMASK, DX=DX, sigma=sigma)
                 cmap = self.get_cmap("LANDMASK")
                 self.VARIABLES["LANDMASK_SIGMA"+sigma_str] = VariableSave("Blurred land mask", "Blurred land mask", "", "", 2, LANDMASK_SIGMA, cmap=cmap)
             return self.get_data(varname+sigma_str, **kwargs) #call again get data, if ever there is a crop, it will be done in VariableSave
@@ -1769,7 +1785,7 @@ class Dom():
             CC_U = self.get_data("CC_U", **new_kwargs)
             zaxis = self.find_axis("z", dim=3, **new_kwargs)
             return self.get_Z_SB_LB(CC_U, Z, typ=varname[-2:], zaxis=zaxis)
-        elif varname in ["SBZC", "LBZC", "CIBLZC", "SIBLZC"] :
+        elif varname in ["SBZC", "LBZC", "CIBLZC", "SIBLZC", "SBZC2", "LBZC2", "SBMH", "LBMH", "SBMHR", "LBMHR"] :
             crop = kwargs["crop"]
             if crop[0] in ["ALL", [0, self.get_data("NZ")]] or (type(crop[0]) is list and crop[0][0] == 0 and crop[0][1] > 10) :
                 new_kwargs = kwargs
@@ -1781,7 +1797,16 @@ class Dom():
             zaxis = self.find_axis("z", dim=3, **new_kwargs)
             if varname in ["SBZC", "LBZC"] :
                 AD225_U = self.get_data("AD225_U", **new_kwargs)
-                return self.get_Z_SB_LB(AD225_U, Z, typ=varname[-2:], zaxis=zaxis)
+                return self.get_Z_SB_LB(AD225_U, Z, typ=varname[:2], zaxis=zaxis)
+            elif varname in ["SBZC2", "LBZC2"] :
+                CC_U = self.get_data("CC_U", **new_kwargs)
+                return self.get_Z_SB_LB(CC_U, Z, typ=varname[:2], zaxis=zaxis)
+            elif varname in ["SBMH", "LBMH"] :
+                CC_U = self.get_data("CC_U", **new_kwargs)
+                return self.get_SBMH(CC_U, Z, typ=varname[:2], zaxis=zaxis)
+            elif varname in ["SBMHR", "LBMHR"] :
+                CC_U = self.get_data("CC_U", **new_kwargs)
+                return self.get_SBMHR(CC_U, Z, typ=varname[:2], zaxis=zaxis)
             elif varname in ["CIBLZC", "SIBLZC"]:
                 RI = self.get_data("RI", **new_kwargs)
                 return self.get_Z_TIBL(RI, Z, typ=varname[:4], zaxis=zaxis)
@@ -1930,9 +1955,9 @@ class Dom():
         fac = 1
         if varname1 in ["COVUV", "COVVU", "M2U", "M2V", "COVUW", "COVVW", "COVWU", "COVWV"] or varname1.startswith("COVU") or varname1.startswith("COVV"):
             varname1 = "COVUW" if varname1 == "COVWU" else "COVVW" if varname1 == "COVWV" else varname1
-            if varname.startswith("NORM_") or varname.startswith("DIR_"):
+            if varname1.startswith("NORM_") or varname.startswith("DIR_"):
                 raise(Exception(f"error : norm and direction of {varname1} doesn't make sense"))
-            elif varname in ["M2U", "M2V", "COVUV", "COVVU"]:
+            elif varname1 in ["M2U", "M2V", "COVUV", "COVVU"]:
                 M2U, M2V, COVUV = self.get_data(["M2U", "M2V", "COVUV"], **kwargs)
                 if varname1 == "M2U" :
                     return M2U*s*s + M2V*c*c + 2*COVUV*c*s
@@ -2566,7 +2591,7 @@ class Dom():
             zaxis : if CC_U is more than 1D, we need to know which axis correspond to "z"
             ZPBL : float, int or np.array, same dimension as WD and Z : if Z is present, only the points below ZPBL are used, default : 2000m
         Returns 
-            Z_SB : np.array of N dimension
+            Z_SB : np.array of N dimension (length = 1 for zaxis)
         """
         SBS = self.get_BS(CC_U, typ=typ+"S", zaxis=zaxis, Z=Z, ZPBL=ZPBL)
         Z_SB = np.nanargmin(CC_U>0, axis=zaxis)
@@ -2575,10 +2600,54 @@ class Dom():
         Z_SB1 = np.take_along_axis(Z, Z_SB, axis=zaxis)
         CC_U0 = np.take_along_axis(CC_U, Z_SB-1, axis=zaxis)
         CC_U1 = np.take_along_axis(CC_U, Z_SB, axis=zaxis)
-        Z_SB = -CC_U1 * ((Z_SB0 - Z_SB1)/(CC_U0 - CC_U1)) + Z_SB1
+        pos = Z_SB != 0
+        Z_SB[pos] = -CC_U1[pos] * ((Z_SB0[pos] - Z_SB1[pos])/(CC_U0[pos] - CC_U1[pos])) + Z_SB1[pos]
+        Z_SB[np.logical_not(pos)] = Z_SB1[np.logical_not(pos)]
         # Z_SB = np.squeeze(Z_SB, axis=zaxis)
-        Z_SB[np.logical_or(np.isnan(SBS), SBS==0)] = np.nan
+        Z_SB[np.logical_or(np.isnan(SBS), SBS<1e-5)] = .0
         return Z_SB
+    
+    def get_SBMH(self, CC_U, Z, typ="SB", zaxis=0, ZPBL=2000) :
+        """
+        Description
+            Calculate SB maximal velocity in the gravity current
+        Parameters
+            CC_U : np.array of N dimension : the cross-coast velocity array
+            Z : np.array of N dimension : Height above ground in meters
+        Optional
+            typ : str : "SB" or "LB" for land or sea breeze height
+            zaxis : if CC_U is more than 1D, we need to know which axis correspond to "z"
+            ZPBL : float, int or np.array, same dimension as WD and Z : if Z is present, only the points below ZPBL are used, default : 2000m
+        Returns 
+            SBMH : np.array of N dimension (length = 1 for zaxis)
+        """
+        Z_SB = self.get_Z_SB_LB(CC_U, Z, typ=typ, zaxis=zaxis, ZPBL=ZPBL)
+        notSBG = np.where(Z > Z_SB-1e-5)
+        CC_U[notSBG] = 0
+        SBMH = -np.nanmin(CC_U, axis=zaxis) if typ == "LB" else np.nanmax(CC_U, axis=zaxis)
+        return np.expand_dims(SBMH, axis=zaxis)
+    
+    def get_SBMHR(self, CC_U, Z, typ="SB", zaxis=0, ZPBL=2000) :
+        """
+        Description
+            Calculate SB maximal velocity in the return current
+        Parameters
+            CC_U : np.array of N dimension : the cross-coast velocity array
+            Z : np.array of N dimension : Height above ground in meters
+        Optional
+            typ : str : "SB" or "LB" for land or sea breeze height
+            zaxis : if CC_U is more than 1D, we need to know which axis correspond to "z"
+            ZPBL : float, int or np.array, same dimension as WD and Z : if Z is present, only the points below ZPBL are used, default : 2000m
+        Returns 
+            SBMHR : np.array of N dimension (length = 1 for zaxis)
+        """
+        Z_SB = self.get_Z_SB_LB(CC_U, Z, typ=typ, zaxis=zaxis, ZPBL=ZPBL)
+        notPBL = np.where(Z > ZPBL)
+        CC_U[notPBL] = 0
+        notSB = np.where(Z*Z_SB < 1)
+        CC_U[notSB] = 0
+        SBMHR = np.nanmax(CC_U, axis=zaxis) if typ == "LB" else -np.nanmin(CC_U, axis=zaxis)
+        return np.expand_dims(SBMHR, axis=zaxis)
     
     def get_Z_TIBL(self, RI, Z, typ="CIBL", zaxis=0, ZPBL=2000) :
         """
@@ -3070,6 +3139,7 @@ class Dom():
         GWMASK = self.get_data("GWMASK4", itime=itime)
         print(f"GWMASK.shape : {GWMASK.shape}")
         GWD, _ = manage_GW.compute_wave_orientation_gradient(W, DY, DX, GWMASK)
+        GWD += 180 #Arbitrary chosen to be between 180 and 360 for this case because it moves toward NW
         print(f"GWD.shape : {GWD.shape}")
         # GWLAM = manage_GW.compute_wavelength(W, DY, DX, expected_lambda=1700, GWD=GWD, mask=GWMASK, display=display, method="fit")
         # print(f"GWLAM.shape : {np.array(GWLAM).shape}")
@@ -3352,7 +3422,7 @@ class Dom():
             var : np.array : data
             dims : tuple of str : dimensions of the variable ; ex : ("x"), ("y", "x")
         Optional
-            itime : int : index of the date in self.date_list ; ex : 0, 2, -1 ; default : 0
+            itime : int : index of the date in self.date_list ; ex : 0, 2, -1 ; default : 0, if None, it is a static file
             long_name : str : long name of the variable ; ex : "South-West coordinate" ; default : ""
             standard_name : str : standard name of the variable ; ex : "X coordinate" ; default : ""
             units : str : units name ; ex : "m", "Pa.s-1" ; default : ""
@@ -3360,8 +3430,13 @@ class Dom():
         Returns 
             Dom 
         """
-        date = self.date_list[itime]
-        filename = self.postprocdir + self.name + "_post_" + self.date2str(date, self.software) + ".nc"
+        if itime is None :
+            filename = self.postprocdir + self.name + "_post_static.nc"
+            key = "post_static"
+        else :
+            date = self.date_list[itime]
+            filename = self.postprocdir + self.name + "_post_" + self.date2str(date, self.software) + ".nc"
+            key = "post"
         if standard_name == "" :
             standard_name = long_name 
         if long_name == "" :
@@ -3387,8 +3462,8 @@ class Dom():
         else :
             # print("opening file : ", filename)
             init = False
-            if filename in self.output_filenames["post"] and self.keep_open:
-                ncfout = self.output_filenames["post"][filename]
+            if filename in self.output_filenames[key] and self.keep_open:
+                ncfout = self.output_filenames[key][filename]
                 ncfout.close()
                 ncfout = Dataset(filename, mode="a", format='NETCDF4_CLASSIC')
             else :
@@ -3462,7 +3537,7 @@ class Dom():
         
         if self.keep_open :
             # we close the Dataset in "a" (append) mode and repoen it in "r" (read) mode
-            self.output_filenames["post"][filename] = Dataset(filename, mode="r", format='NETCDF4_CLASSIC')
+            self.output_filenames[key][filename] = Dataset(filename, mode="r", format='NETCDF4_CLASSIC')
         
 #################################################################################################################################
 ######  Geography and location
@@ -3774,7 +3849,7 @@ class Dom():
         plt.grid(which="both")
         plt.legend()
         plt.xlabel("$i_z$")
-        plt.ylabel("Z or DZ $(m)$")
+        plt.ylabel("$Z$ or $\Delta Z$ (m)")
         plt.xlim([0, plt.xlim()[1]])
         plt.title("Vertical mesh "+self.name)
         return Z, DZ_cell, fig

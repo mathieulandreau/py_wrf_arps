@@ -57,6 +57,7 @@ class DomWRF(Dom):
             "hist" : {},
             "base" : {},
             "post" : {},
+            "post_static" : {},
             "df" : {},
             "diag" : {},
             "diag2" : {},
@@ -108,9 +109,16 @@ class DomWRF(Dom):
                 self.output_filenames['ts'][pfx].append(self.output_data_dir + filename)
                 self.FLAGS['ts'] = True
         for filename in os.listdir(self.postprocdir):
-            if filename.startswith(self.name + "_post_" ):
+            if filename.startswith(self.name + "_post_static" ):
+                self.FLAGS['post_static'] = True
+                # if False:
+                if self.keep_open :
+                    self.output_filenames['post_static'][self.postprocdir + filename] = Dataset(self.postprocdir + filename, "r")
+                else :
+                    self.output_filenames['post_static'][self.postprocdir + filename] = True
+            elif filename.startswith(self.name + "_post_" ):
                 self.FLAGS['post'] = True
-            # if False:
+                # if False:
                 if self.keep_open :
                     self.output_filenames['post'][self.postprocdir + filename] = Dataset(self.postprocdir + filename, "r")
                 else :
@@ -135,6 +143,7 @@ class DomWRF(Dom):
             key = 'hist' #for old WRF settings when everything was in wrfout
         
         filename = next(iter(self.output_filenames[key]))
+        print("initializing from", filename)
         if self.keep_open :
             file = self.output_filenames[key][filename]
         else :
@@ -289,9 +298,24 @@ class DomWRF(Dom):
             return PTV/(1+constants.RV/constants.RD * QV)
         elif varname in ["T_BASE"] : 
             return self.get_data("PT_BASE", **kwargs) #T0
-        elif varname in ["T", "T2", "TV"]: #convert potential temperature to real temperature
+        elif varname in ["T", "TV"]: #convert potential temperature to real temperature
             PT_var = self.get_data("P"+varname, **kwargs)
             P = self.get_data("P", **kwargs)
+            return constants.PT_to_T(PT_var, P)
+        elif varname in ["T2"]: #convert potential temperature to real temperature
+            PT_var = self.get_data("P"+varname, **kwargs)
+            if kwargs["crop"][0] in [0, [0, 1]] :
+                new_kwargs = kwargs
+            else :
+                new_kwargs = copy.deepcopy(kwargs)
+                new_kwargs["saved"] = {}
+                new_kwargs["crop"] = ([0,1], kwargs["crop"][1], kwargs["crop"][2])
+            zaxis = self.find_axis("z", dim=3, varname="P", **new_kwargs)
+            print(zaxis)
+            P = self.get_data("P", **new_kwargs)
+            print(P.shape)
+            P = np.squeeze(P, axis=zaxis)
+            print(PT_var.shape, P.shape)
             return constants.PT_to_T(PT_var, P)
         elif varname in ["ZP_PERT", "MUT_PERT", "PTV_PERT", "P_PERT", "PI_PERT"]:
             if kwargs["avg"] :
@@ -906,7 +930,7 @@ class DomWRF(Dom):
         elif varname in ["GWW"]:
             return 2*self.get_data("COVWS3", **kwargs)
         
-        # Pressure transfer term
+        # Non-hydrostatic ressure transfer term
         elif varname in ["NUU"]:
             RHO, DXW_COVUP = self.get_data(["RHO", p+"DXW_"+p+"COVUPNH"], **kwargs)
             return -2*DXW_COVUP/RHO

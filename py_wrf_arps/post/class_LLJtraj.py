@@ -5,15 +5,16 @@ import copy
 import os
 import netCDF4
 from matplotlib import pyplot as plt
-from ..lib import manage_images, manage_time, manage_traj, manage_angle
+from ..lib import manage_images, manage_time, manage_traj, manage_angle, manage_plot
 from ..WRF_ARPS import Dom
 from ..class_proj import Proj
 
 class LLJtraj():
     
-    def __init__(self, sim, dom, itime=("2020-05-17-15", "2020-05-18-08"), itstr_list=["2020-05-18-00", "2020-05-18-01", "2020-05-18-02"]):
+    def __init__(self, sim, dom, itime=("2020-05-17-15", "2020-05-18-08"), itstr_list=["2020-05-18-00", "2020-05-18-01", "2020-05-18-02"], cmap="turbo"):
         self.sim = sim
         self.dom = self.sim.get_dom(dom)
+        self.cmap = cmap
         self.date0_list = manage_time.to_datetime(itstr_list)
         self.NT0 = len(self.date0_list)
         self.NZ = 21
@@ -111,21 +112,31 @@ class LLJtraj():
                 self.pt[v] = np.zeros((self.NT0, self.Ntraj, self.NT))
                 for it0 in range(self.NT0) : 
                     if v in self.ps :
-                        dim = np.squeeze(self.ps[v].ndim)
+                        dim = np.squeeze(self.ps[v]).ndim
                         if dim == 4 :
-                            self.pt[v][it0] = manage_traj.traj_to_var(self.pt["IX"][it0], self.pt["IY"][it0], self.ps[v])
+                            self.pt[v][it0] = manage_traj.traj_to_var(self.pt["IX"][it0], self.pt["IY"][it0], self.pt["IZ"][it0], self.ps[v])
                         elif dim == 3 :
                             self.pt[v][it0] = manage_traj.traj_to_var2D(self.pt["IX"][it0], self.pt["IY"][it0], np.squeeze(self.ps[v]))
                         else :
                             raise(Exception(f"Wrong dim ({dim}) of self.ps[{v}]"))
                     elif v in self.p :
-                        dim = np.squeeze(self.ps[v].ndim)
+                        dim = np.squeeze(self.p[v]).ndim
                         if dim == 4 :
-                            self.pt[v][it0] = manage_traj.traj_to_var(self.pt["IX"][it0], self.pt["IY"][it0], self.p[v])
+                            self.pt[v][it0] = manage_traj.traj_to_var(self.pt["IX"][it0], self.pt["IY"][it0], self.pt["IZ"][it0], self.p[v])
                         elif dim == 3 :
                             self.pt[v][it0] = manage_traj.traj_to_var2D(self.pt["IX"][it0], self.pt["IY"][it0], np.squeeze(self.p[v]))
                         else :
                             raise(Exception(f"Wrong dim ({dim}) of self.p[{v}]"))
+                            
+    def traj_to_map(self, varnames):
+        for v in ["LAT", "LON"]:
+            if not v in self.pt: self.read_postproc(["t"+v])
+        if type(varnames) is str : varnames = [varnames]
+        for v in varnames :
+            if v not in self.pm :  
+                self.pm[v] = np.zeros((self.NT0, self.NY, self.NX))
+                for it0 in range(self.NT0) :
+                    self.pm[v][it0] = self.dom.interpolate_to_self_grid(self.pt["LAT"][it0], self.pt["LON"][it0], self.pt[v][it0], max_dist_km = 5*self.dom.get_data("DX")/1000)
 
 #################################################################################################################################
 ######  PLOT FIGURES
@@ -144,16 +155,16 @@ class LLJtraj():
             }]
             for i_traj in selected_traj:
                 params.append({
-                    "same_ax" : True, "X" : self.pt["X"][it0,i_traj], "Y" : self.pt["Y"][it0,i_traj], "Z" : self.pt["DELTA"][it0,i_traj], "cmap" : "jet", "discrete" : 6, 
+                    "same_ax" : True, "X" : self.pt["X"][it0,i_traj], "Y" : self.pt["Y"][it0,i_traj], "Z" : self.pt["DELTA"][it0,i_traj], "cmap" : self.cmap, "discrete" : 6, 
                     "grid" : False, "clim" : [-9, 9], "kwargs_plt" : {"s" : 10, "edgecolor" : "w", "linewidth" : 0.5},
                     "plot_cbar" : i_traj == selected_traj[0], "clabel" : "$\Delta^c t$ (h)",
-                    "dpi" : 120, "savepath" : f"t30/LLJ/traj/04_map_{Nselect}traj_tc{itstr}",
+                    "dpi" : 120, "savepath" : f"t{self.sim.tab_test[0]}/LLJ/traj/04_map_{Nselect}traj_tc{itstr}",
                 })
                 params.append({
                     "same_ax" : True, "X" : self.pt["X"][it0,i_traj,selected_i_it], "Y" : self.pt["Y"][it0,i_traj,selected_i_it], "Z" : self.pt["DELTA"][it0,i_traj,selected_i_it], 
-                    "cmap" : "jet", "discrete" : 6, "grid" : False, "clim" : [-9, 9], "kwargs_plt" : {"edgecolor" : "w", "linewidth" : .5},
+                    "cmap" : self.cmap, "discrete" : 6, "grid" : False, "clim" : [-9, 9], "kwargs_plt" : {"edgecolor" : "w", "linewidth" : .5},
                     "plot_cbar" : i_traj == selected_traj[0], "clabel" : "$\Delta^c t$ (h)", "plot_cbar" : False,
-                    "dpi" : 120, "savepath" : f"t30/LLJ/traj/04_map_{Nselect}traj_tc{itstr}",
+                    "dpi" : 120, "savepath" : f"t{self.sim.tab_test[0]}/LLJ/traj/04_map_{Nselect}traj_tc{itstr}",
                 })
             fig = self.sim.plot_fig(params)
     
@@ -168,7 +179,7 @@ class LLJtraj():
                 "after" : range(it_init_in, self.NT, 6),
             }
             for str0 in ["before", "after"]:
-                vmin, vmax, extend, cmap, ticks = manage_plot.get_cmap_extend([-9.08, 8.92], np.arange(18), "jet", discrete=6, ticks=None, nancolor=None)
+                vmin, vmax, extend, cmap, ticks = manage_plot.get_cmap_extend([-9.08, 8.92], np.arange(18), self.cmap, discrete=6, ticks=None, nancolor=None)
                 params = []
                 for i_traj in selected_traj:
                     for i_it in selected_i_it[str0]:
@@ -176,8 +187,12 @@ class LLJtraj():
                             "X" : self.pp[varname][it0,i_traj,i_it], "Y" : self.pp["Z"][it0,i_traj,i_it]/1000, 
                             "kwargs_plt" : {"color" : cmap((i_it-it_init_in)/(6*18) + 0.5), "linewidth" : 3}, 
                             "same_ax" : i_it != selected_i_it[str0][0], "ylim":[0, 1.3], "xlim":xlim, "xlabel":xlabel, "Xname":varname, "DX_subplots" : 8, "ylabel" : "$Z$ (km)",
-                            "same_fig" : i_it != selected_i_it[str0][0], "savepath" : f"t30/LLJ/traj/04_profile_d{self.dom.i_str}_{varname}_tc{itstr}_{str0}_itraj{i_traj}", "dpi" : 120,
+                            "same_fig" : i_it != selected_i_it[str0][0], "savepath" : f"t{self.sim.tab_test[0]}/LLJ/traj/04_profile_d{self.dom.i_str}_{varname}_tc{itstr}_{str0}_itraj{i_traj}", "dpi" : 120,
                         })
+                        if varname in ["U", "V", "MH", "WD180"] and varname+"2000" in self.pt:
+                            params.append({
+                                "X" : self.pt[varname+"2000"][it0,i_traj,i_it], "Y" : 1.28, "same" : -1, "same_ax" : True, "same_fig" : True, "style" : "o",
+                            })
                 fig = self.sim.plot_fig(params)
 
 #################################################################################################################################
@@ -192,6 +207,9 @@ class LLJtraj():
         self.write_postproc("IY", typ="t")
         self.write_postproc("IZ", typ="t")
         self.write_postproc("DELTA", typ="t", long_name="Time difference with the initial time", standard_name="DELTA", units="h")
+    
+    def load_traj(self):
+        self.read_postproc(["tX", "tY", "tZP", "tIX", "tIY", "tIZ", "tDELTA"])
     
     def init_postproc(self):
         for it0 in range(self.NT0):
@@ -280,6 +298,8 @@ class LLJtraj():
             ncfin = netCDF4.Dataset(filename, mode="r")
             if varnames is None :
                 varnames = [v for v in ncfin.variables]
+            elif type(varnames) is str :
+                varnames = [varnames]
             for v in varnames :
                 if v[0] == "t":
                     self.pt[v[1:]] = np.zeros((self.NT0, self.Ntraj, self.NT))
@@ -317,20 +337,62 @@ class LLJtraj():
 #################################################################################################################################    
     
     def compute_traj_and_save_data_for_the_first_time(self):
+        print("get_data")
         self.get_traj_data()
+        print("init_traj_variables")
         self.init_traj_variables()
+        print("calculate_traj")
         self.calculate_traj()
+        print("init_postproc")
         self.init_postproc()
+        print("write_traj")
         self.write_traj()
-        self.raw_to_traj(["U", "V"])
+        print("raw_to_traj")
+        self.raw_to_traj(["U", "V", "Z", "LAT", "LON"])
         self.pt["MH"] = np.sqrt(self.pt["U"]**2 + self.pt["V"]**2)
         self.pt["WD180"] = manage_angle.angle180(manage_angle.UV2WD_deg(self.pt["U"], self.pt["V"]))
-        self.raw_to_profile(["U", "V"])
+        print("raw_to_profile")
+        self.raw_to_profile(["U", "V", "Z"])
         self.pp["MH"] = np.sqrt(self.pp["U"]**2 + self.pp["V"]**2)
         self.pp["WD180"] = manage_angle.angle180(manage_angle.UV2WD_deg(self.pp["U"], self.pp["V"]))
+        print("write_postproc")
         for typ in ["t", "p"] :
-            self.write_postproc("U", typ="t")
-            self.write_postproc("V", typ="t")
-            self.write_postproc("MH", typ="t")
-            self.write_postproc("WD180", typ="t", units="°")
+            self.write_postproc("U", typ=typ)
+            self.write_postproc("V", typ=typ)
+            self.write_postproc("Z", typ=typ)
+            self.write_postproc("MH", typ=typ)
+            self.write_postproc("WD180", typ=typ, units="°")
+        self.write_postproc("LAT", typ="t", long_name="Latitude", standard_name="LAT", units="°N")
+        self.write_postproc("LON", typ="t", long_name="Longitude", standard_name="LON", units="°E")
         self.plot_traj()
+
+    def get_the_traj_of_a_variable_and_save_it(self, varname, smooth=True):
+        if smooth :
+            self.get_sdata(varname)
+        else :
+            self.get_data(varname)
+        self.raw_to_traj(varname)
+        self.write_postproc(varname, typ="t")
+        
+    def get_the_profile_of_a_variable_and_save_it(self, varname, smooth=True, plot=True):
+        if smooth :
+            self.get_sdata(varname)
+        else :
+            self.get_data(varname)
+        self.raw_to_profile(varname)
+        self.write_postproc(varname, typ="p")
+        if plot :
+            self.read_postproc(["pZ"])
+            self.plot_profile(varname)
+            
+            
+    def traj_to_map_LLJ_MH(self, varname, smooth=True, plot=True):
+        if smooth :
+            self.get_sdata(varname)
+        else :
+            self.get_data(varname)
+        self.raw_to_profile(varname)
+        self.write_postproc(varname, typ="p")
+        if plot :
+            self.read_postproc(["pZ"])
+            self.plot_profile(varname)

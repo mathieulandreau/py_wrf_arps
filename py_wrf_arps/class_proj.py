@@ -335,6 +335,8 @@ class Proj():
             kwargs["vinterp"]["points"] = self.get_points_for_vcross(dom_expe, kwargs["vinterp"]["points"])
         if "zoom" in kwargs :
             kwargs["zoom"] = self.get_zoom_index(dom_expe, kwargs["zoom"])
+        if "avg_area" in kwargs :
+            kwargs["avg_area"] = self.get_zoom_index(dom_expe, kwargs["avg_area"])
         # If one variable call dom_expe.get_data
         if type(varname) == str :
             return dom_expe.get_data(varname, **kwargs)
@@ -1532,7 +1534,7 @@ class Proj():
         n = len(Z)
         params = [{
             "X" : range(1, n+1), "Y" : Z, "style" : "+", "label" : "$Z$", "dom" : dom, "grid" : "both", "grid_which":"both",
-            "yscale" : "log", "xlabel":  "$i_z$", "ylabel" : "Z or $\Delta Z$ $(m)$", "xlim" : [0, n+1], "savepath" : savepath,
+            "yscale" : "log", "xlabel":  "$i_z$", "ylabel" : "Z or $\Delta Z$ (m)", "xlim" : [0, n+1], "savepath" : savepath,
             "kwargs_plt" : { "markersize" : 10, "markeredgewidth" : 2}, "dpi": 120,
         },{
             "same" : -1, "Y" : DZ_cell, "style" : "x", "label" : "$\Delta Z$", "same_ax" : True,

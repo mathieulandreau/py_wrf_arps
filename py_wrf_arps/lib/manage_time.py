@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 import numpy as np
-from datetime import datetime, timedelta, timezone
-from datetime import date as datetime_date
+import datetime
 import pandas as pd
-from astral import LocationInfo
-from astral.sun import sun
+import astral.sun
 
 
 def get_date_list(date_list_in, slice_list=None, itime=None, max_time_correction=0):
@@ -41,7 +39,7 @@ def get_time_slice(date, date_list, max_time_correction = 0):
         for date_i in date :
             temp.append(get_time_slice(date_i, date_list, max_time_correction))
         return temp
-    elif type_date is datetime :
+    elif type_date is datetime.datetime :
         if not date in date_list :
             datetemp, diff, index = nearest_date(date, date_list, return_diff = True, return_index = True)
             if diff > max_time_correction :
@@ -186,7 +184,7 @@ def print_timedelta64(delta, number=10, fmt=None):
 
 def timedelta_to_seconds(delta, fmt=None) :
     type_delta = type(delta)
-    if type_delta is timedelta :
+    if type_delta is datetime.timedelta :
         return delta.total_seconds()
     elif type_delta in [list, np.array, np.ndarray] :
         temp = []
@@ -198,7 +196,7 @@ def timedelta_to_seconds(delta, fmt=None) :
 
 def timedelta_to_milliseconds(delta, fmt=None) :
     type_delta = type(delta)
-    if type_delta is timedelta :
+    if type_delta is datetime.timedelta :
         return delta.seconds + 24*60*60*delta.days
     elif type_delta in [list, np.array, np.ndarray] :
         temp = []
@@ -211,7 +209,7 @@ def timedelta_to_milliseconds(delta, fmt=None) :
 
 def to_timedelta(delta, fmt=None) :
     type_delta = type(delta)
-    if type_delta is timedelta :
+    if type_delta is datetime.timedelta :
         return delta
     elif type_delta is str :
         #"1d6h35m15s" "36h", ...
@@ -240,21 +238,21 @@ def to_timedelta(delta, fmt=None) :
             delta_temp = delta_temp[i+1:]
         else :
             seconds = 0    
-        return timedelta(days=days, hours=hours, minutes=minutes, seconds=seconds)
+        return datetime.timedelta(days=days, hours=hours, minutes=minutes, seconds=seconds)
     elif type_delta is np.timedelta64 :
-        return timedelta(microseconds=int(delta.astype('timedelta64[ms]').astype("int")))
+        return datetime.timedelta(microseconds=int(delta.astype('timedelta64[ms]').astype("int")))
     elif type_delta in [int, float, np.int64, np.float64] :
         if fmt is None :
             print("error in manage_time.to_timedelta : with type : ", type_delta," a format is necessary ('h', 's', ...) , cannot convert : ", delta)
             raise
         elif fmt.lower() == "d" :
-            return timedelta(days=delta)
+            return datetime.timedelta(days=delta)
         elif fmt.lower() == "h" :
-            return timedelta(hours=delta)
+            return datetime.timedelta(hours=delta)
         elif fmt.lower() == "m" :
-            return timedelta(minutes=delta)
+            return datetime.timedelta(minutes=delta)
         elif fmt.lower() == "s" :
-            return timedelta(seconds=delta)
+            return datetime.timedelta(seconds=delta)
         else :
             print("error in manage_time.to_timedelta : with type : ", type_delta," unknown format : ", fmt)
             raise 
@@ -289,9 +287,9 @@ def to_datetime64(date, fmt=None):
         for date_i in date :
             temp.append(to_datetime64(date_i, fmt))
         return np.array(temp).astype('datetime64')
-    elif type(date) in [datetime, pd._libs.tslibs.timestamps.Timestamp]:
+    elif type(date) in [datetime.datetime, pd._libs.tslibs.timestamps.Timestamp]:
         return np.datetime64(date)
-    elif type(date) is datetime_date :
+    elif type(date) is datetime.date :
         return to_datetime64(date.isoformat())
     elif type(date) is str :
         if fmt is None :
@@ -359,19 +357,19 @@ def to_datetime(date, fmt=None):
         for date_i in date :
             temp.append(to_datetime(date_i, fmt))
         return temp
-    elif type(date) is datetime_date :
+    elif type(date) is datetime.date :
         return to_datetime(date.isoformat())
-    elif type(date) is datetime :
+    elif type(date) is datetime.datetime :
         return date
     elif type(date) is np.datetime64 :
         temp = str(date.astype("datetime64[ms]"))
-        return datetime.strptime(temp,"%Y-%m-%dT%H:%M:%S.%f")
+        return datetime.datetime.strptime(temp,"%Y-%m-%dT%H:%M:%S.%f")
     elif type(date) in [pd._libs.tslibs.timestamps.Timestamp, pd.core.indexes.datetimes.DatetimeIndex]:
         return to_datetime(to_datetime64(date))
     elif type(date) in [str, np.str_] :
         if fmt is None :
             fmt = guess_date_format(date)
-        return datetime.strptime(date, fmt)
+        return datetime.datetime.strptime(date, fmt)
     else :
         print("error : unknown type ", type(date), " to convert to datetime : ", date)
         raise
@@ -424,10 +422,10 @@ def nearest_date(date_in, list_of_date, return_diff = False, return_index=True):
 
 def is_nighttime(date, locInfo) :
     date = to_datetime(date)
-    if type(date) is datetime :
+    if type(date) is datetime.datetime :
         if date.tzinfo is None :
-            date = date.replace(tzinfo=timezone.utc) 
-        s = sun(locInfo.observer, date=date)
+            date = date.replace(tzinfo=datetime.timezone.utc) 
+        s = astral.sun.sun(locInfo.observer, date=date)
         if s["sunrise"] < s["sunset"] :
             return date < s["sunrise"] or date > s["sunset"]
         else :

@@ -70,7 +70,8 @@ twilight_rolled = roll_cmap(cmap_circ, shift=shift)
 colors = list(matplotlib.rcParams["axes.prop_cycle"])
 for i, c in enumerate(colors) :
     colors[i] = c["color"]
-
+markers = ["o", "v", "^", ">", "<", "s", "*"]
+    
 VARPLOT = {
     'linestyle': [(0, ()),                   # solid
                   (0, (5, 1)),               # densely dashed
@@ -967,3 +968,13 @@ def nice_bounds(axis_start, axis_end, num_ticks=10):
         axis_end = math.ceil(axis_end / nice_tick) * nice_tick
 
     return axis_start, axis_end, nice_tick
+
+def test_colormaps():
+    params = []
+    for v in plt.colormaps() :
+        if v[-2:] not in ["_r"] :
+            params.append({
+                "X" : np.arange(50), "Y" : np.arange(50), "Z" : np.arange(50), "kwargs_plt" : {"cmap" : v}, "discrete" : 6, "title" : v, "DY_subplots" : 3, "NX_subplots" : 6,
+                "yticks" : [], "xticks" : [], "typ" : "SCATTER",
+            })
+    fig = plot_fig(params)
