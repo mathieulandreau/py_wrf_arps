@@ -1,4 +1,5 @@
 from scipy.ndimage import _ni_support, gaussian_filter1d, uniform_filter1d
+import scipy
 import operator
 from collections.abc import Iterable
 import numpy as np
@@ -125,3 +126,14 @@ def gaussian_std(A, **k) :
         smoothed standard deviation : same type as A
     """
     return np.sqrt(gaussian_var(A, **k))
+
+def peak_prominences(var, Z) :
+    """ 1D function to get the prominence of each point in the profile
+    Parameters
+        var : value vector of shape (NZ)
+        Z : height vector of shape (NZ)
+    Returns 
+        prominences : prominence vector of shape (NZ)
+    """
+    prominences, _, _ = scipy.signal.peak_prominences(var, Z)
+    return prominences

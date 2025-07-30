@@ -70,32 +70,21 @@ twilight_rolled = roll_cmap(cmap_circ, shift=shift)
 colors = list(matplotlib.rcParams["axes.prop_cycle"])
 for i, c in enumerate(colors) :
     colors[i] = c["color"]
+colors2 = ['black', 'red', 'green', 'blue', 'cyan', 'magenta', 'orange', 'gray', 'lime']
 markers = ["o", "v", "^", ">", "<", "s", "*"]
-    
+linestyles = [(0, ()),                   # solid
+              (0, (5, 1)),               # densely dashed
+              (0, (1, .5)),              # densely dotted
+              (0, (3, 1, 1, 1)),         # densely dashdotted
+              (0, (3, 1, 1, 1, 1, 1)),   # densely dashdotted
+              (0, (5, 3)),               # loosely dashed
+              (0, (2, 1)),               # loosely dotted
+              (0, (3, 3, 1, 3)),         # loosely dashdotted
+              (0, (3, 3, 1, 3, 1, 3))]   # loosely dashdotdotted
 VARPLOT = {
-    'linestyle': [(0, ()),                   # solid
-                  (0, (5, 1)),               # densely dashed
-                  (0, (1, 1)),               # densely dotted
-                  (0, (3, 1, 1, 1)),         # densely dashdotted
-                  (0, (3, 1, 1, 1, 1, 1)),   # densely dashdotted
-                  (0, (5, 5)),               # loosely dashed
-                  (0, (1, 5)),               # loosely dotted
-                  (0, (3, 5, 1, 5)),         # loosely dashdotted
-                  (0, (3, 5, 1, 5, 1, 5))],  # loosely dashdotdotted
-    'color': ['black', 'red', 'green', 'blue', 'cyan',
-              'magenta', 'orange', 'gray', 'lime'],
-    'dpi': 300,
-    'format': 'png',
-    'fs_title': 16,  # fontsize
-    'fs_label': 20,
-    'fs_tick': 16,
-    'fs_text': 8,
-    'figsize': (6.4,4.8), # default (6.4,4.8 or 4/3)
-    'coastwidth' : 1,
-    'coastcolor' : 'k',
-    'domainwidth' : 1,
-    'fps' : 2,
+    "fps" : 1,
 }
+ 
 tab_cmap = {
     0 : "Spectral_r",
     1 : "terrain", 
@@ -232,7 +221,7 @@ def plot_fig(params_list, n_procs=1):
             ax = ax_list[i_ax]
             ax_plot(ax, **params)
         if savepath is not None :
-            print("saving fig at path : "+savepath)
+            #print("saving fig at path : "+savepath)
             fig.savefig(savepath+"."+savefmt, format=savefmt, bbox_inches=bbox_inches)                
         return fig
 
@@ -757,8 +746,8 @@ def ax_hodograph2(ax, U, V, NZ=10, style='-', label=None, color=None, it=None, p
     
         if NZ > 0 : 
             DNZ = len(Ui)//NZ + 1
-            s = slice(0, -1, DNZ)
-            plot_obj[2] = ax.plot(WD_rad[s], MH[s], "+", color=color)
+            s = slice(0, len(Ui)+1, DNZ)
+            plot_obj[2] = ax.plot(WD_rad[s], MH[s], ".", color=color)
             
     return plot_obj
     
@@ -921,6 +910,10 @@ def get_cmap(i=0, n=None) :
         if i.startswith("inversed_") :
             return inversed_cmap(i[9:], N=n)
     return plt.get_cmap(i, n)
+
+def color_from_cmap(cmap, i, n):
+    cmap = get_cmap(cmap, n)
+    return cmap(i/(n-1))
 
 def nice_number(value, round_=False):
     """

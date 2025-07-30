@@ -89,19 +89,19 @@ class CRO(Expe):
             z_slice = slice(self.NZ)
         
         if varname.upper() == "IT" :
-            return np.arange(5000, dtype="int")[kwargs["time_slice"]]
+            data = np.arange(5000, dtype="int")[kwargs["time_slice"]]
         elif varname.upper() == "IZ" :
-            return np.arange(self.NZ, dtype="int")[z_slice]
+            data = np.arange(self.NZ, dtype="int")[z_slice]
         elif varname == "MH":
-            return np.squeeze(np.array(self.obj.wind_speed)[time_slice, z_slice])
+            data = np.squeeze(np.array(self.obj.wind_speed)[time_slice, z_slice])
         elif varname == "WD":
-            return np.squeeze(np.array(self.obj.wind_direction)[time_slice, z_slice])
+            data = np.squeeze(np.array(self.obj.wind_direction)[time_slice, z_slice])
         elif varname == "TIME":
-            return np.array(self.date_list[time_slice])
+            data = np.array(self.date_list[time_slice])
         elif varname in ["Z", "ZP"] :
-            return self.Z_vec[z_slice]
+            data = self.Z_vec[z_slice]
         elif varname in ["DZ"] :
-            return self.DZ[z_slice]
+            data = self.DZ[z_slice]
         elif varname in self.post_variables :
             ## hard-coded, can do better
             with netCDF4.Dataset(self.postproc_filename, "r") as file :
@@ -127,8 +127,8 @@ class CRO(Expe):
             return var[time_slice]
         else :
             data = self.calculate(varname, itime=itime, time_slice=time_slice, crop=crop, saved=saved, **kwargs)
-            saved[varname] = data
-            return data
+        saved[varname] = data
+        return data
        
     def calculate(self, varname, **kwargs) :
         if varname.startswith("U_AD"):

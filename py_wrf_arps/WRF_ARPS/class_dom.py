@@ -357,6 +357,17 @@ class Dom():
 #################################################################################################################################
 ######  Get data 
 #################################################################################################################################  
+    def copy_kw_get(self, kwargs, saved=False):
+        new_kwargs = {}
+        for key in kwargs.keys() :
+            if key not in ["saved"] :
+                new_kwargs[key] = copy.deepcopy(kwargs[key])
+        if saved :
+            new_kwargs["saved"] = copy.deepcopy(kwargs["saved"])
+        else :
+            new_kwargs["saved"] = {}
+        return new_kwargs
+
     def get_data(self, varname, itime = None, time_slice = None, crop = None, zoom=None, i_unstag = None, hinterp=None, vinterp=None, DX_smooth=None, n_procs=1, avg=None, avg_time=None, avg_area=None, sigma=50, squeeze=True, avg_stats=True, avg_deriv=True, quick_deriv=False, saved=None, save=True, print_level=0, return_val=True):
         """
         Description
@@ -701,8 +712,11 @@ class Dom():
         #Reading levels
         crop_ZP = ([0, self.get_data("NZ")], [iy1, iy2], [ix1, ix2])
         time_slice_ZP = 0
-        var_temp = self.get_data(varname, time_slice=time_slice_ZP, crop=crop_ZP)
-        is3D = (var_temp.ndim == 3)
+        dim = self.get_dim(varname)
+        if dim is None :
+            # we get data a first time to know the dimension, on a single time step
+            dim = self.get_data(varname, time_slice=time_slice_ZP, crop=crop_ZP).ndim
+        is3D = (dim == 3)
         if debug : print(self.prefix, var_temp.shape)
         if is3D :
             ZP_data = self.get_data(ZP, time_slice=time_slice_ZP, crop=crop_ZP)
@@ -1102,7 +1116,7 @@ class Dom():
             if axis == "x" : return count_dim
         raise(Exception("error in Dom.find_axis : the axis type : ", axis, "cannot be found"))
         
-    def get_dim(self, varname) :
+    def get_dim(self, varname, return_status=False) :
         """
         Description
             get the number of spatial dimensions of a variable
@@ -1121,13 +1135,16 @@ class Dom():
             or (varname.startswith("GW") and (varname.endswith("LAM") or varname.endswith("LAMM") or varname.endswith("DIR") or varname.endswith("S")
                                               or varname.endswith("SM") or varname.endswith("D"))) :
             return 0
-        elif varname in ["GWM2R", "GWM2L", "GWM2D", "SBZC", "LBZC", "CIBLZC", "SIBLZC"] or varname.startswith("GWMASK") or varname.startswith("LLJ_"):
+        elif varname in ["GWM2R", "GWM2L", "GWM2D", "SBZC", "LBZC", "CIBLZC", "SIBLZC", "PSLAS"] or varname.startswith("GWMASK") or varname.startswith("LLJ_"):
             return 2
         else : 
             varname2 = self.find_similar_variable(varname)
             if varname2 is None :
-                print(self.prefix, "warning in Dom.get_dim : ", varname, " not in self.VARIABLES, cannot find the dimension, assuming 3")
-                return 3
+                if return_status :
+                    return None
+                else :
+                    print(self.prefix, "warning in Dom.get_dim : ", varname, " not in self.VARIABLES, cannot find the dimension, assuming 3")
+                    return 3
             else :
                 return self.get_dim(varname2)
     
@@ -1164,6 +1181,8 @@ class Dom():
             return varname[:-4]
         elif varname[-2:] in ["_C"] :
             return varname[:-2]
+        elif varname[-3:] in ["_KM"] :
+            return varname[:-3]
         elif varname.startswith("AD") :
             if varname[3] == "_" :
                 return varname[4:]
@@ -1361,6 +1380,9 @@ class Dom():
         elif varname.endswith("_C") :
             varname_temp = varname[:-2]
             return self.get_legend(varname_temp, *args, units="°C", **kwargs)
+        elif varname.endswith("_KM") :
+            varname_temp = varname[:-3]
+            return self.get_legend(varname_temp, *args, units="km", **kwargs)
         else :
             return varname
     
@@ -1424,6 +1446,8 @@ class Dom():
             return np.log(self.get_data(varname[4:], **kwargs))
         elif varname.startswith("EXP_"):
             return np.exp(self.get_data(varname[4:], **kwargs))
+        elif varname in ["Z_KM"] :
+            return self.get_data("Z", **kwargs)/1e3
         elif varname == "MTIME" : 
             # not used anymore. The objective was to get the time of the middle of the averaged window for averaged variables
             TIME_STATS = np.array(self.get_data("TIME_STATS", **kwargs))
@@ -1453,7 +1477,7 @@ class Dom():
                 #for each day, compute in the entire domain, save, and then get the saved data
                 new_varname = varname+manage_time.date_to_str(date_i)
                 if not new_varname in self.VARIABLES :
-                    new_kwargs = copy.deepcopy(kwargs)
+                    new_kwargs = self.copy_kw_get(kwargs)
                     new_kwargs["time_slice"] = None
                     new_kwargs["saved"] = {}
                     new_kwargs["itime"] = (date_i, date_i+manage_time.to_timedelta(1, "d"))
@@ -1488,6 +1512,9 @@ class Dom():
             zaxis = self.find_axis("z", varname=varname[:-2], **kwargs)
             varS = np.expand_dims(varS, axis=zaxis)
             return var - varS
+        elif varname in ["PSLAS"]: #deviation from synoptic 
+            PSL, PSLS = self.get_data(["PSL", "PSLS"], **kwargs)
+            return PSL - PSLS
         elif varname in ["URHO", "VRHO", "WRHO"]: # Product rho*u
             RHO, U = self.get_data(["RHO", varname[-1]], **kwargs)
             return RHO*U
@@ -1523,7 +1550,7 @@ class Dom():
             #Fictive Sea level pressure (extrapolation of surface pressure from height ZP=HT to 0mASL)
             #see https://github.com/NCAR/wrf-python/blob/main/src/wrf/extension.py#L238
             #see method : DCOMPUTESEAPRS https://github.com/NCAR/wrf-python/blob/develop/fortran/wrf_user.f90
-            kwargs_slp = copy.deepcopy(kwargs)
+            kwargs_slp = self.copy_kw_get(kwargs)
             if "crop" in kwargs_slp :
                 crop_slp = ("ALL", kwargs_slp["crop"][1], kwargs_slp["crop"][2])
             else :
@@ -1756,7 +1783,7 @@ class Dom():
             self.VARIABLES[varname] = VariableSave("Distance from domain boundary", "Distance from domain boundary", km*"k"+"m", km*"k"+"m", 2, BDY_DIST, cmap=0)
             return self.get_data(varname, **kwargs) #call again get data, if ever there is a crop, it will be done in VariableSave
         elif varname in ["SBI", "LBI"] :
-            new_kwargs = copy.deepcopy(kwargs)
+            new_kwargs = self.copy_kw_get(kwargs)
             crop = kwargs["crop"]
             new_kwargs["crop"] = ("ALL", crop[1], crop[2]) 
             new_kwargs["hinterp"] = None
@@ -1768,7 +1795,7 @@ class Dom():
             if crop[0] in ["ALL", [0, self.get_data("NZ")]] :
                 new_kwargs = kwargs
             else :
-                new_kwargs = copy.deepcopy(kwargs)
+                new_kwargs = self.copy_kw_get(kwargs)
                 new_kwargs["crop"] = ("ALL", crop[1], crop[2]) 
             Z,CC_U = self.get_data(["Z","CC_U"], **new_kwargs)
             zaxis = self.find_axis("z", dim=3, **new_kwargs)
@@ -1779,7 +1806,7 @@ class Dom():
             if crop[0] in ["ALL", [0, self.get_data("NZ")]] :
                 new_kwargs = kwargs
             else :
-                new_kwargs = copy.deepcopy(kwargs)
+                new_kwargs = self.copy_kw_get(kwargs)
                 new_kwargs["crop"] = ("ALL", crop[1], crop[2]) 
             Z = self.get_data("Z", **new_kwargs)
             CC_U = self.get_data("CC_U", **new_kwargs)
@@ -1790,9 +1817,8 @@ class Dom():
             if crop[0] in ["ALL", [0, self.get_data("NZ")]] or (type(crop[0]) is list and crop[0][0] == 0 and crop[0][1] > 10) :
                 new_kwargs = kwargs
             else :
-                new_kwargs = copy.deepcopy(kwargs)
+                new_kwargs = self.copy_kw_get(kwargs)
                 new_kwargs["crop"] = ("ALL", crop[1], crop[2]) 
-                new_kwargs["saved"] = {}
             Z = self.get_data("Z", **new_kwargs)
             zaxis = self.find_axis("z", dim=3, **new_kwargs)
             if varname in ["SBZC", "LBZC"] :
@@ -1811,7 +1837,7 @@ class Dom():
                 RI = self.get_data("RI", **new_kwargs)
                 return self.get_Z_TIBL(RI, Z, typ=varname[:4], zaxis=zaxis)
         elif varname == "T_STAR" :
-            kwargs_sfc = copy.deepcopy(kwargs)
+            kwargs_sfc = self.copy_kw_get(kwargs)
             if "crop" in kwargs :
                 _, cropy, cropx = kwargs["crop"]
                 kwargs_sfc["crop"] = (0, cropy, cropx)
@@ -1875,7 +1901,7 @@ class Dom():
             #2- I should use average PTV
             raise(Exception("RIB is not written yet in Dom.calculate_stability"))
         elif varname in ["LMO", "LMO_INV"] :
-            kwargs_sfc = copy.deepcopy(kwargs)
+            kwargs_sfc = self.copy_kw_get(kwargs)
             U_STAR,T_STAR = self.get_data(["U_STAR","T_STAR"], **kwargs)
             if varname == "LMO" : 
                 return U_STAR**2 / (constants.KARMAN * constants.BETA * T_STAR)
@@ -2086,12 +2112,11 @@ class Dom():
                 adjust_last = False
                 new_it2 = it2 + dit
             
-            new_kwargs = copy.deepcopy(kwargs)
+            new_kwargs = self.copy_kw_get(kwargs)
             new_time_slice = slice(new_it1, new_it2+1, dit)
             if debug : print(self.prefix, "old time_slice : ", time_slice)
             if debug : print(self.prefix, "new_time_slice : ", new_time_slice)
             new_kwargs["time_slice"] = new_time_slice
-            new_kwargs["saved"] = {}
             if adjust_first and adjust_last :
                 new_kwargs["saved"] = kwargs["saved"]
             TIME = self.get_data("TIME", **new_kwargs)
@@ -2156,11 +2181,10 @@ class Dom():
             else :
                 adjust_last = False
                 new_cropz2 = cropz2 + 1
-            new_kwargs = copy.deepcopy(kwargs)
+            new_kwargs = self.copy_kw_get(kwargs)
             new_crop = ([new_cropz1, new_cropz2], cropy, cropx)
             if debug : print(self.prefix, "new_crop : ", new_crop)
             new_kwargs["crop"] = new_crop
-            new_kwargs["saved"] = {}
             if adjust_first and adjust_last :
                 new_kwargs["saved"] = kwargs["saved"]
             ZP = self.get_data("ZP", **new_kwargs)
@@ -2233,11 +2257,10 @@ class Dom():
             else :
                 adjust_last = False
                 new_cropx2 = cropx2 + 1
-            new_kwargs = copy.deepcopy(kwargs)
+            new_kwargs = self.copy_kw_get(kwargs)
             new_crop = (cropz, cropy, [new_cropx1, new_cropx2])
             if debug : print(self.prefix, "new_crop : ", new_crop)
             new_kwargs["crop"] = new_crop
-            new_kwargs["saved"] = {}
             if adjust_first and adjust_last :
                 new_kwargs["saved"] = kwargs["saved"]
             X = self.get_data("X", **new_kwargs)
@@ -2302,11 +2325,10 @@ class Dom():
             else :
                 adjust_last = False
                 new_cropy2 = cropy2 + 1
-            new_kwargs = copy.deepcopy(kwargs)
+            new_kwargs = self.copy_kw_get(kwargs)
             new_crop = (cropz, [new_cropy1, new_cropy2], cropx)
             if debug : print(self.prefix, "new_crop : ", new_crop)
             new_kwargs["crop"] = new_crop
-            new_kwargs["saved"] = {}
             if adjust_first and adjust_last :
                 new_kwargs["saved"] = kwargs["saved"]
             Y = self.get_data("Y", **new_kwargs)
@@ -2378,7 +2400,7 @@ class Dom():
         elif varname.startswith("DTS_") : 
             varname2 = varname[4:]
             DTC_var = self.get_data("DTC_"+varname2, **kwargs)
-            new_kwargs = copy.deepcopy(kwargs)
+            new_kwargs = self.copy_kw_get(kwargs)
             new_kwargs["DX_smooth"] = 5 #arbitrary chosen to filter gravity waves
             #interdépendance pour gagner de l'espace et du temps, je ne suis pas sûr que ça marche
             if not "stokes" in kwargs["saved"]:
@@ -2513,11 +2535,7 @@ class Dom():
         Returns 
             BI : np.array of N-1 dimension : the z dimension is squeezed, there is a single value of SBI or LBI per column
         """
-        if zaxis == 0 :
-            alpha = WD[0]
-        elif zaxis == 1 : 
-            alpha = WD[:, 0]
-        alpha = np.expand_dims(alpha, axis=zaxis)
+        alpha = np.expand_dims(np.take(WD, 0, zaxis), axis=zaxis)
         phi = np.expand_dims(phi, axis=zaxis)
         beta = np.copy(WD)
         if Z is not None :
@@ -2541,7 +2559,7 @@ class Dom():
         BI = np.nanmax(BI, axis=zaxis)
         return BI
     
-    def get_BS(self, CC_U, typ="SBS", zaxis=0, Z=None, ZPBL=2000) :
+    def get_BS(self, CC_U_in, typ="SBS", zaxis=0, Z=None, ZPBL=2000) :
         """
         Description
             Calculate SB strength (self made formula) 
@@ -2555,6 +2573,7 @@ class Dom():
         Returns 
             BS : np.array of N-1 dimension : the z dimension is squeezed, there is a single value of SBS or LBS per column
         """
+        CC_U = np.copy(CC_U_in)
         if Z is not None :
             notPBL = Z > ZPBL
         else :
@@ -2565,10 +2584,7 @@ class Dom():
         b = np.nanmin(CC_U, axis=zaxis)
         c = np.nanargmax(CC_U, axis=zaxis)
         d = np.nanargmin(CC_U, axis=zaxis)
-        if zaxis == 0 :
-            CC_U0 = CC_U[0]
-        elif zaxis == 1 : 
-            CC_U0 = CC_U[:, 0]
+        CC_U0 = np.take(CC_U, 0, zaxis)
         if typ == "LBS" :
             mask = np.logical_and(c>d, CC_U0<0)
         else : #default is SBS
@@ -2607,7 +2623,7 @@ class Dom():
         Z_SB[np.logical_or(np.isnan(SBS), SBS<1e-5)] = .0
         return Z_SB
     
-    def get_SBMH(self, CC_U, Z, typ="SB", zaxis=0, ZPBL=2000) :
+    def get_SBMH(self, CC_U_in, Z, typ="SB", zaxis=0, ZPBL=2000) :
         """
         Description
             Calculate SB maximal velocity in the gravity current
@@ -2621,13 +2637,14 @@ class Dom():
         Returns 
             SBMH : np.array of N dimension (length = 1 for zaxis)
         """
+        CC_U = np.copy(CC_U_in)
         Z_SB = self.get_Z_SB_LB(CC_U, Z, typ=typ, zaxis=zaxis, ZPBL=ZPBL)
         notSBG = np.where(Z > Z_SB-1e-5)
         CC_U[notSBG] = 0
         SBMH = -np.nanmin(CC_U, axis=zaxis) if typ == "LB" else np.nanmax(CC_U, axis=zaxis)
-        return np.expand_dims(SBMH, axis=zaxis)
+        return np.expand_dims(SBMH-1e-5, axis=zaxis)
     
-    def get_SBMHR(self, CC_U, Z, typ="SB", zaxis=0, ZPBL=2000) :
+    def get_SBMHR(self, CC_U_in, Z, typ="SB", zaxis=0, ZPBL=2000) :
         """
         Description
             Calculate SB maximal velocity in the return current
@@ -2641,6 +2658,7 @@ class Dom():
         Returns 
             SBMHR : np.array of N dimension (length = 1 for zaxis)
         """
+        CC_U = np.copy(CC_U_in)
         Z_SB = self.get_Z_SB_LB(CC_U, Z, typ=typ, zaxis=zaxis, ZPBL=ZPBL)
         notPBL = np.where(Z > ZPBL)
         CC_U[notPBL] = 0
@@ -2832,21 +2850,18 @@ class Dom():
                 mDI = np.expand_dims(mDI, axis=0)
             return 1* np.logical_and(np.logical_and(mr, ml), mDI)
         elif varname in ["GWA"] :
-            new_kwargs = copy.deepcopy(kwargs)
+            new_kwargs = self.copy_kw_get(kwargs)
             new_kwargs["DX_smooth"] = 1
-            new_kwargs["saved"] = {}
             W = self.get_data("W", **new_kwargs)
             W2 = self.get_data("SQUARED_W", **new_kwargs)
             return np.sqrt(2*(W2 - W**2))
         elif varname.startswith("GWAVG") : #ex : GWAVGU, GWAVGV
-            new_kwargs = copy.deepcopy(kwargs)
+            new_kwargs = self.copy_kw_get(kwargs)
             new_kwargs["DX_smooth"] = 1
-            new_kwargs["saved"] = {}
             return self.get_data(varname[5:], **new_kwargs)
         elif varname.startswith("GWA") : #ex : GWAU, GWAV
-            new_kwargs = copy.deepcopy(kwargs)
+            new_kwargs = self.copy_kw_get(kwargs)
             new_kwargs["DX_smooth"] = 1
-            new_kwargs["saved"] = {}
             var = self.get_data(varname[3:], **new_kwargs)
             var2 = self.get_data("SQUARED_"+varname[3:], **new_kwargs)
             return np.sqrt(2*(var2 - var**2))
@@ -2855,9 +2870,8 @@ class Dom():
             # This variable is specific to this event
             # Based on the direction GWM4D, calculated by the gradient method within the zone GWMASK4
             # GWR is used to calculate the TKE correction, and to study the differences within the GW (in paper 1 Mathieu Landreau et al.)
-            new_kwargs = copy.deepcopy(kwargs)
+            new_kwargs = self.copy_kw_get(kwargs)
             new_kwargs["crop"] = (15, kwargs["crop"][1], kwargs["crop"][2])
-            new_kwargs["saved"] = {}
             
             GWLAM = self.get_data("GWM4LAMM", **new_kwargs)
             GWD = self.get_data("GWM4D", **new_kwargs)
@@ -2881,9 +2895,8 @@ class Dom():
                     raise(Exception("error : cannot compute DGWRDT at time it = " +str(it)))
                 it_list2.append(it-1)
                 it_list2.append(it)
-            new_kwargs = copy.deepcopy(kwargs)
+            new_kwargs = self.copy_kw_get(kwargs)
             new_kwargs["time_slice"] = it_list2
-            new_kwargs["saved"] = {}
             var = self.get_data("GWR_INST", **new_kwargs)
             old_shape = var.shape
             new_shape = (NT, 2) + old_shape[1:]
@@ -3297,10 +3310,9 @@ class Dom():
                 print(f"warning in Dom.calculate_LLJ, return {varname}={varname1}")
                 return self.get_data(varname1, **kwargs)
             LLJ_IZ, LLJ = self.get_data(["LLJ_IZ", "LLJ"], **kwargs)
-            new_kwargs = copy.deepcopy(kwargs)
+            new_kwargs = self.copy_kw_get(kwargs)
             izmax = self.nearest_z_index(1.2*500) #supposing manage_LLJ.max_heigth = 500 (LLJ core cannot be higher than 500 m) 
             new_kwargs["crop"] =  ([0, izmax], kwargs["crop"][1], kwargs["crop"][2])
-            new_kwargs["saved"] = {}
             var1 = self.get_data(varname1, **new_kwargs)
             zaxis = self.find_axis("z", varname=varname1, **new_kwargs)
             LLJ = np.expand_dims(LLJ, axis=zaxis).astype(int)

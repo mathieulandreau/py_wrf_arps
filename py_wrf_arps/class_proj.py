@@ -799,7 +799,7 @@ class Proj():
             #Get the missing data with dom.get_data or in the former figure if "same_ax" = True
             if "same_ax" in params and params["same_ax"] :
                 i_before = i_params - 1
-                while "same_ax" in params_list[i_before] and params_list[i_before]["same_ax"] and i_before > 0 : 
+                while not params_list[i_before]["typ"] in ["2DH", "2DV"] and "same_ax" in params_list[i_before] and params_list[i_before]["same_ax"] and i_before > 0 : 
                     i_before -= 1
                 params_before = params_list[i_before]
                 params["compute_title"] = manage_dict.getp("compute_title", params, False)
@@ -823,6 +823,7 @@ class Proj():
                 params["kwargs_get_data"]["vinterp"]["points"] = points
                 
             if "X" in params and type(params["X"]) is str :
+                # print(params["X"], i_params, params["typ"], dom.name)
                 params["Xname"] = params["X"]
                 params["X"] = self.get_data(dom, params["Xname"], **kwargs_get_data)
             if "Xname" in params :
@@ -997,10 +998,12 @@ class Proj():
                             if get[j].startswith("same"):
                                 varname = get[j][5:]
                                 if varname in params_before :
+                                    # print("same : ", params["typ"], params_key, params_before["typ"], varname)
                                     params[params_key] = params_before[varname]
                                     loop = False
                             elif get[j].startswith("dom") and dom is not None :
                                 varname = get[j][4:]
+                                # print("get : ", dom.name, varname, kwargs_get_data["crop"])
                                 params[params_key] = self.get_data(dom, varname, **kwargs_get_data)
                                 loop = False
                         else : 
@@ -1410,7 +1413,7 @@ class Proj():
                 })
         return self.plot_fig(params, **kwargs_plot), params
 
-    def plot_Taylor_diagram(self, reference, variable, itime=None, timestep=None, dom_list=None, location=None, levels=None, legend=None, ref_legend=None, marker_list=None, title=True, unit=None, **kw_get) :
+    def plot_Taylor_diagram(self, reference, variable, itime=None, timestep=None, dom_list=None, location=None, levels=None, legend=None, ref_legend=None, marker_list=None, color_list=None, saved_list=None, title=True, unit=None, **kw_get) :
         #preparing parameters
         reference = self.get_dom_expe(reference)
         ref_legend = reference.name if ref_legend is None else ref_legend
@@ -1474,6 +1477,8 @@ class Proj():
         std_max = 1.5*std_ref
         for i_dom, dom in enumerate(dom_list) :
             marker = "o" if marker_list is None else marker_list[i_dom]
+            color = None if color_list is None else color_list[i_dom]
+            saved = None if saved_list is None else saved_list[i_dom]
             #getting element data
             if location is not None :
                 iy, ix = self.nearest_index(dom, location)
@@ -1483,7 +1488,7 @@ class Proj():
                 crop = ("ALL", iy, ix)
             else :
                 crop = ("ALL", "ALL", "ALL")
-            data_i = self.get_data(dom, variable, itime=itime, crop=crop, hinterp=hinterp)
+            data_i = self.get_data(dom, variable, itime=itime, crop=crop, hinterp=hinterp, saved=saved)
             #calculating Pearson coefficient and std
             corrcoef_i = np.corrcoef(data_ref.flatten()[pos], data_i.flatten()[pos])[0, 1]
             corrcoef_min = min(corrcoef_min, corrcoef_i)
@@ -1494,7 +1499,7 @@ class Proj():
                 label = dom.name
             else :
                 label = legend[i_dom]
-            dia.add_sample(std_i, corrcoef_i, marker=marker, ms=10, ls='',label=label)
+            dia.add_sample(std_i, corrcoef_i, marker=marker, color=color, ms=10, ls='',label=label)
 
         # Add RMS contours, and label them
         contours = dia.add_contours(levels=5, colors='0.5') # 5 levels

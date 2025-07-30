@@ -16,7 +16,7 @@ BETA = G/T0 #m.s-2.K-1 (= 0.033)
 KARMAN = 0.4 
 CS = 0.25 # Smagorinsky constant
 CK = 0.15 # TKE constant
-EPSILON = 0.61
+EPSILON = RV/RD
 EPSILON2 = 0.622 #(Stull 2017 p.88)
 
 #Copied from WRF source code (phys/module_bl_myjpbl, lines 41-45)

@@ -215,24 +215,24 @@ class LLJtraj():
         for it0 in range(self.NT0):
             filename = self.it0_to_filename(it0)
             if not os.path.exists(filename):
-                with netCDF4.Dataset(filename, mode="w", format='NETCDF4_CLASSIC') as ncfout : 
-                    ncfout.Title        = "py_wrf_arps LLJtraj postproc"
-                    ncfout.Institution  = "LHEEA-DAUC"
-                    ncfout.FMTVER       = "NetCDF 4.0 Classic"
-                    ncfout.Source       = "py_wrf_arps/post/class_LLJtraj.py"
-                    ncfout.References   = "See class_LLJtraj.py"
-                    ncfout.Comment      = "Postproc data saved in file"
+                with netCDF4.Dataset(filename, mode="w", format='NETCDF4_CLASSIC') as ncfile : 
+                    ncfile.Title        = "py_wrf_arps LLJtraj postproc"
+                    ncfile.Institution  = "LHEEA-DAUC"
+                    ncfile.FMTVER       = "NetCDF 4.0 Classic"
+                    ncfile.Source       = "py_wrf_arps/post/class_LLJtraj.py"
+                    ncfile.References   = "See class_LLJtraj.py"
+                    ncfile.Comment      = "Postproc data saved in file"
                     now = datetime.datetime.now()
                     dt_string = now.strftime("%Y-%m-%d %H:%M:%S")
-                    ncfout.History      = "Creation date: {date}".format(date=dt_string)
-                    ncfout.createDimension('Ntraj', self.Ntraj)
-                    ncfout.createDimension('NT', self.NT) 
-                    ncfout.createDimension('NZ', self.NZ)
-                    ncfout.createDimension('NY', self.NY)
-                    ncfout.createDimension('NX', self.NX)
-                    ncfout.START_DATE = self.dom.date2str(self.TIMEin[0], "WRF")
-                    ncfout.COAST_DATE = self.dom.date2str(self.date0_list[it0], "WRF")
-                    ncfout.END_DATE = self.dom.date2str(self.TIMEin[-1], "WRF")
+                    ncfile.History      = "Creation date: {date}".format(date=dt_string)
+                    ncfile.createDimension('Ntraj', self.Ntraj)
+                    ncfile.createDimension('NT', self.NT) 
+                    ncfile.createDimension('NZ', self.NZ)
+                    ncfile.createDimension('NY', self.NY)
+                    ncfile.createDimension('NX', self.NX)
+                    ncfile.START_DATE = self.dom.date2str(self.TIMEin[0], "WRF")
+                    ncfile.COAST_DATE = self.dom.date2str(self.date0_list[it0], "WRF")
+                    ncfile.END_DATE = self.dom.date2str(self.TIMEin[-1], "WRF")
 
         
     def write_postproc(self, varname, typ="t", long_name=None, standard_name=None, units="", latex_units=None, datatyp=np.float32):
@@ -260,35 +260,35 @@ class LLJtraj():
             filename = self.it0_to_filename(it0)
             if not os.path.exists(filename):
                 self.init_postproc()
-            ncfout = netCDF4.Dataset(filename, mode=mode, format='NETCDF4_CLASSIC')
+            ncfile = netCDF4.Dataset(filename, mode=mode, format='NETCDF4_CLASSIC')
             if mode == "a":
-                if typ+varname in ncfout.variables :
-                    ncfout.close()
-                    ncfout = netCDF4.Dataset(filename, mode="r+", format='NETCDF4_CLASSIC')
-                    ncout = ncfout[typ+varname]
+                if typ+varname in ncfile.variables :
+                    ncfile.close()
+                    ncfile = netCDF4.Dataset(filename, mode="r+", format='NETCDF4_CLASSIC')
+                    ncvar = ncfile[typ+varname]
                     mode = "r+"
                     print("mode = r+ : data already exist in the file")
                 else :
-                    ncout = ncfout.createVariable(typ+varname, datatyp, dims)
+                    ncvar = ncfile.createVariable(typ+varname, datatyp, dims)
             if mode == "r+":
-                if not typ+varname in ncfout.variables :
-                    ncfout.close()
-                    ncfout = netCDF4.Dataset(filename, mode="a", format='NETCDF4_CLASSIC')
-                    ncout = ncfout.createVariable(typ+varname, datatyp, dims)
+                if not typ+varname in ncfile.variables :
+                    ncfile.close()
+                    ncfile = netCDF4.Dataset(filename, mode="a", format='NETCDF4_CLASSIC')
+                    ncvar = ncfile.createVariable(typ+varname, datatyp, dims)
                     mode = "a"
                 else :
-                    ncout = ncfout[typ+varname]
-            ncout.long_name = varname
-            ncout.standard_name = varname
-            ncout.units = units
-            ncout.latex_units = latex_units
+                    ncvar = ncfile[typ+varname]
+            ncvar.long_name = varname
+            ncvar.standard_name = varname
+            ncvar.units = units
+            ncvar.latex_units = latex_units
             if typ == "t" :
-                ncout[:] = self.pt[varname][it0]
+                ncvar[:] = self.pt[varname][it0]
             elif typ == "p" :
-                ncout[:] = self.pp[varname][it0]
+                ncvar[:] = self.pp[varname][it0]
             else :
                 raise(Exception(f"Unknown typ : {typ}"))
-            ncfout.close()
+            ncfile.close()
             
         
     def read_postproc(self, varnames=None):

@@ -225,7 +225,8 @@ default_params = {
             "scale" : 120, #scale velocities with a constant factor
             #-- For UW plots in 2DV cross section (works only if "X" and "Y" have the same units (meters or km))
             # "scale_units" : "xy", 
-            # "angles" : "xy"
+            # "angles" : "xy",
+            # "scale" : 5,
         },
         "args_key" : [5, "5 m/s"],
         "size" : 1,

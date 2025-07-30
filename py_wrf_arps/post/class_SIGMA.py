@@ -97,3 +97,8 @@ class SIGMA():
             for isig,sigma in enumerate(self.sigma_vec):
                 sigma_str = str(int(sigma))
                 dom.write_postproc("COR"+sigma_str, self.p[domstr]["COR"][isig], ("y", "x"), itime=None, long_name="Coast orientation sigma="+sigma_str+"m", standard_name="COR"+sigma_str, units="°", latex_units="°", typ=np.float32)
+                
+    def complete_procedure(self):
+        self.compute_COR_on_individual_domains()
+        self.compute_COR_with_other_domains()
+        self.write_postproc_COR()

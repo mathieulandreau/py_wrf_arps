@@ -295,7 +295,7 @@ class DomWRF(Dom):
         elif varname in ["PT"] :
             PTV = self.get_data("PTV", **kwargs)
             QV = self.get_data("QV", **kwargs)
-            return PTV/(1+constants.RV/constants.RD * QV)
+            return PTV/(1 + constants.EPSILON * QV)
         elif varname in ["T_BASE"] : 
             return self.get_data("PT_BASE", **kwargs) #T0
         elif varname in ["T", "TV"]: #convert potential temperature to real temperature
@@ -307,8 +307,7 @@ class DomWRF(Dom):
             if kwargs["crop"][0] in [0, [0, 1]] :
                 new_kwargs = kwargs
             else :
-                new_kwargs = copy.deepcopy(kwargs)
-                new_kwargs["saved"] = {}
+                new_kwargs = self.copy_kw_get(kwargs)
                 new_kwargs["crop"] = ([0,1], kwargs["crop"][1], kwargs["crop"][2])
             zaxis = self.find_axis("z", dim=3, varname="P", **new_kwargs)
             print(zaxis)
@@ -751,6 +750,10 @@ class DomWRF(Dom):
             kwargs : all the kwargs from get_data
         05/02/2025 : Mathieu LANDREAU
         """
+        # P: shear production, A: advection, T: Boussinesq pressure transport, D: turbulent diffusion, B: buoyancy, 
+        # N: exacte pressure (R-B), R: "exact" pressure+buoyancy, G: subgrid dissipation, K: 2nd turbulent diffusion (divergence term, negligible)
+        # Z: Estimate of the numerical dissipation, E: numerical dissipation as a residual, F: total dissipation (E+D)
+        
         if varname_in.startswith("W") :
             W = "W" # calculate terms in WRF coordinates system (advection with omega, ...)
             varname = varname_in[1:]
@@ -759,9 +762,10 @@ class DomWRF(Dom):
             W = ""
             varname = varname_in
             C = "C"  # "W" = compute derivatives in cartesian system
-            
-        # P: shear production, A: advection, T:pressure transport, D: turbulent diffusion, B: buoyancy, N: Non-hydrostatic pressure transport, R: "exact" pressure transport
-        if varname in ["PTKE", "ATKE", "TTKE", "DTKE", "BTKE", "NTKE", "RTKE", "GTKE", "KTKE", "ZTKE"] : #total Production, Advection, pressure Transfer, turbulent Diffusion, Buoyancy, or Non-hydrostatic pressure
+        
+        if varname.startswith("N"): # N: exacte pressure (R-B)
+            return self.get_data("R"+varname[1:], **kwargs) - self.get_data("B"+varname[1:], **kwargs)
+        elif varname in ["PTKE", "ATKE", "TTKE", "DTKE", "BTKE", "NTKE", "RTKE", "GTKE", "KTKE", "ZTKE"] : #total Production, Advection, pressure Transfer, turbulent Diffusion, Buoyancy, or Non-hydrostatic pressure
             vUU, vVV, vWW = self.get_data([p+W+varname[0]+"UU", p+W+varname[0]+"VV", p+W+varname[0]+"WW"], **kwargs) 
             return 0.5*(vUU+vVV+vWW)
         elif varname in ["PUU", "PVV", "PWW", "AUU", "AVV", "AWW", "AUV", "AUW", "AVW", "DUU", "DVV", "DWW", "DUV", "DUW", "DVW"] : #total production or advection or turbulent diffusion for 3 terms
@@ -930,25 +934,25 @@ class DomWRF(Dom):
         elif varname in ["GWW"]:
             return 2*self.get_data("COVWS3", **kwargs)
         
-        # Non-hydrostatic ressure transfer term
-        elif varname in ["NUU"]:
-            RHO, DXW_COVUP = self.get_data(["RHO", p+"DXW_"+p+"COVUPNH"], **kwargs)
-            return -2*DXW_COVUP/RHO
-        elif varname in ["NVV"]:
-            RHO, DYW_COVVP = self.get_data(["RHO", p+"DYW_"+p+"COVVPNH"], **kwargs)
-            return -2*DYW_COVVP/RHO
-        elif varname in ["NWW"]:
-            RHO, DZ_COVWP = self.get_data(["RHO", "DZ_COVWPNH"], **kwargs)
-            return -2*DZ_COVWP/RHO
-        elif varname in ["NUV"] :
-            RHO, DXW_COVVP, DYW_COVUP = self.get_data(["RHO", p+"DXW_"+p+"COVVPNH", p+"DYW_"+p+"COVUPNH"], **kwargs)
-            return -(DXW_COVVP + DYW_COVUP)/RHO
-        elif varname in ["NUW"] :
-            RHO, DXW_COVWP, DZ_COVUP = self.get_data(["RHO", p+"DXW_COVWPNH", "DZ_"+p+"COVUPNH"], **kwargs)
-            return -(DXW_COVWP + DZ_COVUP)/RHO
-        elif varname in ["NVW"] :
-            RHO, DYW_COVWP, DZ_COVVP = self.get_data(["RHO", p+"DYW_COVWPNH", "DZ_"+p+"COVVPNH"], **kwargs)
-            return -(DYW_COVWP + DZ_COVVP)/RHO
+        # Non-hydrostatic pressure transfer term
+        # elif varname in ["NUU"]:
+        #     RHO, DXW_COVUP = self.get_data(["RHO", p+"DXW_"+p+"COVUPNH"], **kwargs)
+        #     return -2*DXW_COVUP/RHO
+        # elif varname in ["NVV"]:
+        #     RHO, DYW_COVVP = self.get_data(["RHO", p+"DYW_"+p+"COVVPNH"], **kwargs)
+        #     return -2*DYW_COVVP/RHO
+        # elif varname in ["NWW"]:
+        #     RHO, DZ_COVWP = self.get_data(["RHO", "DZ_COVWPNH"], **kwargs)
+        #     return -2*DZ_COVWP/RHO
+        # elif varname in ["NUV"] :
+        #     RHO, DXW_COVVP, DYW_COVUP = self.get_data(["RHO", p+"DXW_"+p+"COVVPNH", p+"DYW_"+p+"COVUPNH"], **kwargs)
+        #     return -(DXW_COVVP + DYW_COVUP)/RHO
+        # elif varname in ["NUW"] :
+        #     RHO, DXW_COVWP, DZ_COVUP = self.get_data(["RHO", p+"DXW_COVWPNH", "DZ_"+p+"COVUPNH"], **kwargs)
+        #     return -(DXW_COVWP + DZ_COVUP)/RHO
+        # elif varname in ["NVW"] :
+        #     RHO, DYW_COVWP, DZ_COVVP = self.get_data(["RHO", p+"DYW_COVWPNH", "DZ_"+p+"COVVPNH"], **kwargs)
+        #     return -(DYW_COVWP + DZ_COVVP)/RHO
         
         # 2nd turbulent diffusion of TKE
         elif varname in ["KUU"]:
@@ -1063,11 +1067,12 @@ class DomWRF(Dom):
             else :
                 adjust_last = False
                 new_cropz2 = cropz2 + 1
-            new_kwargs = copy.deepcopy(kwargs)
+            new_kwargs = self.copy_kw_get(kwargs)
             new_crop = ([new_cropz1, new_cropz2], cropy, cropx)
             if debug : print(self.prefix, "new_crop : ", new_crop)
             new_kwargs["crop"] = new_crop
-            new_kwargs["saved"] = {}
+            if adjust_first and adjust_last :
+                new_kwargs["saved"] = kwargs["saved"]
             ETA = self.get_data("ETA", **new_kwargs)
             var = self.get_data(varname2, **new_kwargs)
             ndim = var.ndim

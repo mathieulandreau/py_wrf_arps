@@ -97,7 +97,6 @@ def calculate_double_traj(X, Y, ZP, U, V, W, HT, DX, DY, DZ, TIMEin, ix_init, iy
             coord_2D_old = []
             for itraj in range(Ntraj):
                 coord_2D_old.append((np.copy(IY_p[itraj, 0]), np.copy(IX_p[itraj, 0])))
-
             ##########################################################################################################   
             ########################## Integrate to determine parcel's new location ##################################
             ##########################################################################################################   
