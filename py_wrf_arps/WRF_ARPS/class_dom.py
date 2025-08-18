@@ -2,7 +2,7 @@
 import sys
 from . import *
 from ..class_variables import *
-from ..lib import manage_display, manage_time, manage_projection, manage_GW, manage_angle, manage_scipy, manage_images, constants, manage_list
+from ..lib import manage_display, manage_time, manage_projection, manage_GW, manage_angle, manage_scipy, manage_images, constants, manage_list, manage_dict
 
 from collections.abc import Iterable
 import os
@@ -1131,7 +1131,7 @@ class Dom():
             return self.VARIABLES[varname].dim
         elif varname.endswith("_TS") : 
             return 1
-        elif varname in ["GWM2X1", "GWM2Y1", "GWM2RMAX", "GWM2LMAX"] \
+        elif varname in ["GWM2X1", "GWM2Y1", "GWM2RMAX", "GWM2LMAX", "ZCBL", "ZCI"] \
             or (varname.startswith("GW") and (varname.endswith("LAM") or varname.endswith("LAMM") or varname.endswith("DIR") or varname.endswith("S")
                                               or varname.endswith("SM") or varname.endswith("D"))) :
             return 0
@@ -1868,6 +1868,21 @@ class Dom():
             RHO, DZ_RHO, CS = self.get_data(["RHO", "DZ_RHO", "CS"], **kwargs)
             return -0.5*constants.G/RHO * DZ_RHO + constants.G/CS**2
         
+        elif varname in ["ZCBL", "ZCI"] :
+            # CBL height of Capping inversion height, calculated in post.manage_ABL
+            if self.FLAGS["df"] :
+                df = list(self.output_filenames["df"].values())[0]
+                out = df[varname][kwargs["time_slice"]]
+                if type(out) in [int, float, np.int64, np.float64]:
+                    return out
+                elif type(out) in [list, np.array, np.ndarray, pd.core.series.Series] :
+                    out = np.expand_dims(np.array(out), axis=(-3, -2, -1)) #(NT, NZ, NY, NX) (will be squeezed later in get_data)
+                    return out
+                else :
+                    raise(Exception(f"Unknow type {type(out)}"))
+            else :
+                raise(Exception(f"error in Dom.calculate {varname} : please add the online calculation of {varname} or calculate before and save in df (see post.manage_ABL)"))
+        
         elif kwargs["avg"] and not varname.endswith("_AVG") :
             if varname[0] != "Q" :
                 print(self.prefix, "warning : searching ", varname+"_AVG instead of "+varname)
@@ -2049,11 +2064,6 @@ class Dom():
                 fac=-1
             elif varname1[:4] in ["DYC_", "DYW_"] :
                 varname2 = "DX" + varname1[2] + "_" + varname1[4:]
-            elif varname1 == "M2U" :
-                varname2 = "M2V"
-                fac=-1
-            elif varname1 == "M2V" :
-                varname2 = "M2U"
             else :
                 print(f"warning in Dom.calculate rotation, unknown varname1 = {varname1}, returning the original data")
                 return self.get_data(varname1, **kwargs)
@@ -2911,7 +2921,7 @@ class Dom():
             varname2 = varname[5:]
             GWSM, GWLAM, GWR, GWAvar = self.get_data(["GWM4SM", "GWM4LAMM", "GWR", "GWA"+varname2], **kwargs)
             DT = 600
-            OMEGA = 2*np.pi * GWSM/GWLAM
+            OMEGA = 2*np.pi * GWSM/GWLAM + 1e-10
             # PHI = ((GWR+0.25)%1) * 2*np.pi if varname2 == "W" else ((GWR+0.5)%1) * 2*np.pi
             PHI = GWR * 2*np.pi if varname2 == "W" else ((GWR-0.25)%1) * 2*np.pi
             return manage_GW.GW_variance(GWAvar, OMEGA, PHI, DT=600)
@@ -3213,6 +3223,7 @@ class Dom():
             GWM2RMAX: Distance from the front where GW are still present
             GWM2LMAX: Max width of the mask area
         """
+        #load data
         p = {}
         kw_get = {
             "itime" : ("2020-05-17-11", "2020-05-17-17"),
@@ -3232,10 +3243,12 @@ class Dom():
         for v in varnames :
             p2[v] = p[v].flatten()
         p2["it"] = p["it"].flatten()
+        #generate a dataframe
         df0 = pd.DataFrame(p2)
-        df0["ir"] = pd.cut(df0["GWM2R"], bins=np.arange(int(np.nanmin(df0["GWM2R"])-1), int(np.nanmax(df0["GWM2R"])+1001), 1000), 
+        #compute ir
+        df0["ir"] = pd.cut(df0["GWM2R"], bins=np.arange(int(np.nanmin(df0["GWM2R"])/1e3-1)*1e3, int(np.nanmax(df0["GWM2R"])/1e3+2)*1e3, 1e3), 
                            labels=False).astype(int)
-        df0["il"] = pd.cut(df0["GWM2L"], bins=np.arange(int(np.nanmin(df0["GWM2L"])-1), int(np.nanmax(df0["GWM2L"])+1001), 1000), 
+        df0["il"] = pd.cut(df0["GWM2L"], bins=np.arange(int(np.nanmin(df0["GWM2L"])/1e3-1)*1e3, int(np.nanmax(df0["GWM2L"])/1e3+2)*1e3, 1e3), 
                            labels=False).astype(int)
         GWIR = np.array(df0["ir"]).reshape(NT, NY, NX)
         GWIL = np.array(df0["il"]).reshape(NT, NY, NX)
@@ -3246,7 +3259,7 @@ class Dom():
         rmin = 2000
         rmax = 5000
         CDmin = 0
-        BDmin = 2000
+        BDmin = 1000
         delta = 300
 
         # conditions : mask1 for zone B (gravity wave and gravity current side of the front), mask 0 for zone C

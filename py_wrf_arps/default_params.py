@@ -80,6 +80,8 @@ default_params = {
         "video" : False,
         "kwargs_plt" : {
             "cmap" : "Spectral_r",
+            "edgecolor" : "k", 
+            "linewidth" : .5
         },
         "compute_title" : True,
         "savefig" : False,

@@ -1365,6 +1365,14 @@ class DomWRF(Dom):
         return ts_params
     
     def get_ts_time_slice(self, loc, **kwargs):
+        """
+        A faster method to get TIME_TS, but I don't have time for this :
+        import linecache
+        NT = sum(1 for line in open(filename))
+        t0 = float(linecache.getline(filename, 2).split()[1]) 
+        tN = float(linecache.getline(filename, NT).split()[1])
+        ...
+        """
         TIME_TS, _, _ = self.get_ts(loc, "U10", **kwargs)
         TIME = self.get_data("TIME", **kwargs)
         if type(TIME) in [list, np.array, np.ndarray] :

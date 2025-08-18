@@ -1,5 +1,6 @@
 import copy
-import pickle 
+import pickle
+from ..lib import manage_list
 
 def select_params(d1, d2, depth=5000):
     for k in d2 :
@@ -34,6 +35,8 @@ def print_dict(d, title=None, prefix=""):
                 print(prefix+k,":")
                 print_dict(d[k], None, prefix+"   ")
             elif type_k in [str, int, float, bool]:
+                print(prefix+k,":", d[k])
+            elif manage_list.is_iterable(d[k]) and len(d[k]) < 10 :
                 print(prefix+k,":", d[k])
             else :
                 print(prefix+k,":", type_k)

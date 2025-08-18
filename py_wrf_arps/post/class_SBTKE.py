@@ -233,7 +233,7 @@ class SBTKE():
             "X" : (self.dist2D+1.5*(.5-dec))[mask2], "Y" : (self.HOUR2D+.1*(.5-dec))[mask2]*100, "Z" : self.p["TKEpeak"][mask2]>0.0001, 
             "xlim" : [-15.5, 7], "ylim" : [1190, 1810], "xticks" : np.arange(-15, 7, 3), "DX_subplots" : 10,
             "cmap" : "Reds", "kwargs_plt" : {"s" : 40, "edgecolor" : "k", "linewidth" : .5}, "plot_cbar" : False, "clim" : [0, 1.8], 
-            "xlabel" : "Distance from coastline (km)", "ylabel" : "Hour (UTC)",
+            "xlabel" : "$X_c$ (km)", "ylabel" : "Hour (UTC)",
             "dpi" : 120,  "savepath" : f"{self.figdir}TKE_peak_presence_dist_TIME",
         },{ "typ" : "AXVLINE",
         },{ "typ" : "AXVLINE", "X" : -2,
@@ -241,7 +241,7 @@ class SBTKE():
         },{ "X" : self.p["SBZC"][mask], "Y" : self.p["Zpeak"][mask]+10*(.5-np.random.random(np.sum(mask))), "Z" : self.dist2D[mask], "style" : ".", 
             "kwargs_plt" : {"s" : self.p["TKEpeak"][mask]*100, "edgecolor" : "k", "linewidth" : .5}, 
             "cmap" : "Purples_r", "clim" : [-16, 4], "discrete" : 5, "xlim" : [0, 300], "ylim" : [0, 300], "DX_subplots" : 10,
-            "xlabel" : "$Z_{SB}$ (m)", "ylabel" : "Height of the $k_{tot}$ peak (m)", "clabel" : "Distance from coastline (km)",
+            "xlabel" : "$Z_{SB}$ (m)", "ylabel" : "Height of the $k_{tot}$ peak (m)", "clabel" : "$X_c$ (km)",
             "same_fig" : False, "dpi" : 120, "savepath" : f"{self.figdir}TKE_peak_Zpeak_Zc_dist"
         },{ "X" : [0, 300], "Y" : [0, 300], "style":"k", "same_ax" : True,
         },{ "X" : np.array([-1, -1]), "Y" : np.array([-100, -100]), "Z" : np.array([0, 0]), "cmap" : "Greys_r", "clim" : [0, 1],

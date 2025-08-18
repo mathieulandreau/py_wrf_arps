@@ -15,7 +15,7 @@ def welch(TIME, U, window_minutes=30) :
     Optional 
         window_minutes : float : size of the windows in minutes
     Returns 
-        int : index of the domain in self.tab_dom
+        frequencies, psd : 
     """
     NT = len(TIME)
     if type(TIME[0]) == datetime.datetime :

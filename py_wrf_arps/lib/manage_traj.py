@@ -152,8 +152,6 @@ def calculate_double_traj(X, Y, ZP, U, V, W, HT, DX, DY, DZ, TIMEin, ix_init, iy
     print(f"Backward loop: {round(time.time()-start)} s")
     return X_t[:,sliceout], Y_t[:,sliceout], ZP_t[:,sliceout], IX_t[:,sliceout], IY_t[:,sliceout], IZ_t[:,sliceout] #, variable1
     
-
-
 def calculate_traj(X, Y, ZP, U, V, W, HT, DX, DY, DZ, TIMEin, ix_init, iy_init, iz_init, dt_small="10m", forward=True):
     """
     Description
@@ -360,7 +358,6 @@ def traj_to_profile(ix_t, iy_t, VAR, z=None, y=None, x=None):
     if None in [x, y, z] :
         x = np.arange(NX)
         y = np.arange(NY)
-        z = np.arange(NZ)
     coord = np.array([iy_t, ix_t]) #shape(3, NP, NT)
     return np.swapaxes(np.swapaxes(  #shape(NP, NT, NZ)
         np.array([np.array([interpolate.interpn((y,x), VAR[it, iz], coord[:,:,it].T, method='linear', bounds_error=False, fill_value=np.nan) for iz in range(NZ)]) for it in range(NT)]), 1,2), 0,1)

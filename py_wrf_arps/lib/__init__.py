@@ -13,8 +13,9 @@ from ..lib import manage_plot
 from ..lib import manage_projection
 from ..lib import manage_scipy
 from ..lib import manage_TaylorDiagram
-from ..lib import manage_time 
-from ..lib import manage_traj 
+from ..lib import manage_time
+from ..lib import manage_traj
+from ..lib import manage_traj2D
 try : 
     from .TurbAna import TurbAna 
 except : 

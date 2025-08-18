@@ -11,7 +11,7 @@ An example of how to use the ABL class :
     #py_wrf_arps version : 7607ca6cafe292b9218359c1664f65897ac489a7 , the current date is :  2025-03-04 18:25:10.509312
     from py_wrf_arps import *
     # create sim object
-    sim = Proj("/data1/data-mod/mlandreau/03_simulation", "14_20200515/", ["01", "02", "03", "04", "05"], "WRF", tab_test="30")
+    sim = Proj("/data1/data-mod/mlandreau/03_simulation/", "14_20200515/", ["01", "02", "03", "04", "05"], "WRF", tab_test="30")
     # create ABL object
     zone = [260, 330, 260, 330]
     itime = ("2020-05-16-08", "2020-05-19-08")
@@ -246,4 +246,23 @@ class ABL():
                 dfout["ZCBL"] = zCBLout
                 dfout["ZCI"] = zCIout
                 dfout.to_pickle(savepath_i)
+                
+    def do_everything_and_save(self ):
+        # from py_wrf_arps import *
+        #- py_wrf_arps version : 9ba9503b532cb0c0bcfb60b3cc9ed4c885cee6a2 , the current date is :  2025-08-05 16:05:20.508977
+        #- create sim object
+        # sim = Proj("/data1/data-mod/mlandreau/03_simulation/", "14_20200515/", ["01", "02", "03", "04", "05"], "WRF", tab_test="30")
+        #- create ABL object
+        # zone = [260, 330, 260, 330]
+        # itime = ("2020-05-16-08", "2020-05-19-08")
+        # crop = ([0, 70], "ALL", "ALL")
+        # start_dates = ["2020-05-16-08-10", "2020-05-17-05-50", "2020-05-18-06", "2020-05-19-06"]
+        # self = manage_ABL.ABL(sim, "04", zone, itime, crop, start_dates)
+        # call ABL methods
+        fig = self.plot_region(itime = "2020-05-17-18", crop=(0, "ALL", "ALL"))
+        self.get_data()
+        fig = self.plot_data()
+        self.calculate_layers()
+        fig = self.plot_layers()
+        self.save_postproc()
  

@@ -96,6 +96,7 @@ def get_time_slice(date, date_list, max_time_correction = 0):
 
         
 def date_to_str(date, fmt="%Y-%m-%d_%H:%M:%S"):
+    if fmt == "UTC": fmt = "%H%M"
     date = to_datetime(date)
     if type(date) in [list, np.array, np.ndarray] :
         temp = []
