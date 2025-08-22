@@ -1459,13 +1459,11 @@ class Dom():
             U, V = self.get_data(["U"+varname[2:], "V"+varname[2:]], **kwargs)
             return np.sqrt( U**2 + V**2 )
         elif varname in ["WD", "WDS", "WDAS"]: #Wind direction in degrees [0, 360], S=synoptic, AS=deviation from S
-            U, V = self.get_data(["U"+varname[2:], "V"+varname[2:]], **kwargs)
             # note : Wind direction is clockwise from North and points where wind comes FROM
-            WD = manage_angle.UV2WD_deg(U, V) # see lib/manage_angle
+            WD = manage_angle.UV2WD_deg(self.get_data("U"+varname[2:], **kwargs), self.get_data("V"+varname[2:], **kwargs)) # see lib/manage_angle
             return WD
         elif varname in ["WD180", "WDS180", "WDAS180"]: #Wind direction in degrees [-180, 180], S=synoptic, AS=deviation from S
-            WD = self.get_data(varname[:-3], **kwargs)
-            return manage_angle.angle180(WD)
+            return manage_angle.angle180(self.get_data(varname[:-3], **kwargs))
         elif varname in ["US", "VS", "PS", "PSLS"]: #synoptic Velocites, Pressure, and surface pressure
             TIME = self.get_data("TIME", **kwargs)
             date = manage_time.to_day(TIME)
@@ -2173,8 +2171,7 @@ class Dom():
             return data
         
         #Z derivative in cartesian referential frame (t, x, y, z)
-        # Valid for AROME, maybe ARPS
-        # Redefined for WRF with Eta coordinates
+        # Valid for AROME, maybe ARPS and WRF
         elif varname.startswith("DZ_") :
             varname2 = varname[3:]
             cropz, cropy, cropx = kwargs["crop"]
@@ -2221,24 +2218,15 @@ class Dom():
             e2 = np.delete(ZP_diff, 0, axis=zaxis)
             f1 = np.delete(var_diff, -1, axis=zaxis)
             f2 = np.delete(var_diff, 0, axis=zaxis)
-            den = e1*e2*(e1 + e2)
-            num = e2*e2*f1 + e1*e1*f2
-            data = num/den
+            data = (e2*e2*f1 + e1*e1*f2) / (e1*e2*(e1 + e2))
             if debug : print(self.prefix, "data.shape : ", data.shape)
             if adjust_first :
                 NZ_temp = ZP_diff.shape[zaxis]
-                ZP_diff1 = np.delete(ZP_diff, range(1,NZ_temp), axis=zaxis)
-                var_diff1 = np.delete(var_diff, range(1,NZ_temp), axis=zaxis)
-                if debug : print(self.prefix, "var_diff1.shape : ", var_diff1.shape)
-                if debug : print(self.prefix, "ZP_diff1.shape : ", ZP_diff1.shape)
-                if debug : print(self.prefix, "var_diff1/ZP_diff1.shape : ", (var_diff1/ZP_diff1).shape)
-                #data = np.insert(data, 0, var_diff1/ZP_diff1, axis=zaxis)
-                data = np.concatenate((var_diff1/ZP_diff1, data), axis=zaxis)
+                temp = np.expand_dims( np.take(var_diff, 0, axis=zaxis)/np.take(ZP_diff, 0, axis=zaxis), axis=zaxis )
+                data = np.concatenate((temp, data), axis=zaxis)
             if adjust_last :
                 NZ_temp = ZP_diff.shape[zaxis]
-                ZP_diffm1 = np.delete(ZP_diff, range(NZ_temp-1), axis=zaxis)
-                var_diffm1 = np.delete(var_diff, range(NZ_temp-1), axis=zaxis)
-                temp = var_diffm1/ZP_diffm1
+                temp = np.expand_dims( np.take(var_diff, NZ_temp-1, axis=zaxis)/np.take(ZP_diff, NZ_temp-1, axis=zaxis), axis=zaxis )
                 data = np.append(data, temp, axis=zaxis)
             #data = np.squeeze(data)
             if debug : print(self.prefix, "data.shape : ", data.shape)
@@ -2522,8 +2510,7 @@ class Dom():
             return manage_angle.UV2WD_deg(DXC, DYC)
         
         elif varname == "SHEAR" :
-            DZ_U, DZ_V = self.get_data(["DZ_U", "DZ_V"], **kwargs)
-            return np.sqrt(DZ_U**2 + DZ_V**2)
+            return np.sqrt( self.get_data("DZ_U", **kwargs)**2 + self.get_data("DZ_V", **kwargs)**2 )
 
 #################################################################################################################################
 ######  POST_PROCESS_SEA_BREEZES

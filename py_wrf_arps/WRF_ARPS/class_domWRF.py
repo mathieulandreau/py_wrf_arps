@@ -499,9 +499,7 @@ class DomWRF(Dom):
             # It has been checked that the result is similar with :
             # PTV = np.squeeze(self.get_data("PTV", **kwargs))
             # DZ_PTV = np.squeeze(self.get_data("DZ_PTV", **kwargs))
-            PTV = self.get_data("PTV", **kwargs)
-            DZ_PTV = self.get_data("DZ_PTV", **kwargs)
-            return constants.G/PTV * DZ_PTV
+            return constants.G/self.get_data("PTV", **kwargs) * self.get_data("DZ_PTV", **kwargs)
         elif varname in ["KMH"]:
             KM_OPT = self.get_data("KM_OPT")
             if KM_OPT == 4 : # 2D smag
@@ -706,6 +704,8 @@ class DomWRF(Dom):
             var_pert_avg = self.get_data(varname_prefix+"_PERT_AVG", **kwargs)
             var2_pert_avg = self.get_data(varname_prefix+"2_PERT_AVG", **kwargs)
             return var2_pert_avg - var_pert_avg**2
+        elif varname in ["M2UV"] : #M2U + M2V
+            return self.get_data("M2U", **kwargs) + self.get_data("M2V", **kwargs)
         elif varname.startswith("STD") :
             return np.sqrt(self.get_data("M2"+varname[3:], **kwargs))
         elif varname.startswith("COV") :
