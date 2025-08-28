@@ -12,6 +12,7 @@ import copy
 import pandas as pd
 from itertools import product
 from netCDF4 import Dataset
+import netCDF4
 import datetime
 import cartopy.crs as ccrs
 from wrf import vertcross, CoordPair, interplevel, WrfProj, interpline
@@ -129,7 +130,7 @@ class Dom():
                 if len(filename_list) > 0 :
                     filename = filename_list[0]
                     is_time_file = (len(filename_list) > 1)
-                    ncfile = self.output_filenames[key][filename] if self.keep_open else Dataset(filename, "r")
+                    ncfile = self.output_filenames[key][filename] if self.keep_open else netCDF4.Dataset(filename, "r", format='NETCDF4_CLASSIC')
                     for k, v in ncfile.variables.items():
                         if k.isupper() or k == 'Time':
                             self.RAW_VARIABLES[k] = VariableRead(k, k, None, None, None, self.output_filenames[key], is_time_file, k, ncfile, keep_open=self.keep_open) 
@@ -1135,7 +1136,8 @@ class Dom():
             or (varname.startswith("GW") and (varname.endswith("LAM") or varname.endswith("LAMM") or varname.endswith("DIR") or varname.endswith("S")
                                               or varname.endswith("SM") or varname.endswith("D"))) :
             return 0
-        elif varname in ["GWM2R", "GWM2L", "GWM2D", "SBZC", "LBZC", "CIBLZC", "SIBLZC", "PSLAS"] or varname.startswith("GWMASK") or varname.startswith("LLJ_"):
+        elif varname in ["GWM2R", "GWM2L", "GWM2D", "SBZC", "LBZC", "CIBLZC", "SIBLZC", "CIBLZC2", "CIBLZC2", "PSLAS", "CIBLW", "SIBLW"] or varname.startswith("GWMASK") \
+        or varname.startswith("LLJ_") or varname.startswith("LLJ2_"):
             return 2
         else : 
             varname2 = self.find_similar_variable(varname)
@@ -1165,7 +1167,7 @@ class Dom():
             return varname[3:]
         elif varname[:4] in ["DXC_", "DXW_", "DYC_", "DYW_", "DIV_", "ROT_", "DCC_", "DIR_", "DTW_", "DTC_", "LLJ_", "LOG_", "EXP_"] : 
             return varname[4:]
-        elif varname[:5] in ["DETA_", "GRAD_", "NORM_", "GWM2_", "GWM4_", "SQRT_"] : 
+        elif varname[:5] in ["DETA_", "GRAD_", "NORM_", "GWM2_", "GWM4_", "SQRT_", "LLJ2_"] : 
             return varname[5:]
         elif varname[:4] in ["GRAD"] and varname[5] == "_" : 
             return varname[6:]
@@ -1810,7 +1812,7 @@ class Dom():
             CC_U = self.get_data("CC_U", **new_kwargs)
             zaxis = self.find_axis("z", dim=3, **new_kwargs)
             return self.get_Z_SB_LB(CC_U, Z, typ=varname[-2:], zaxis=zaxis)
-        elif varname in ["SBZC", "LBZC", "CIBLZC", "SIBLZC", "SBZC2", "LBZC2", "SBMH", "LBMH", "SBMHR", "LBMHR"] :
+        elif varname in ["SBZC", "LBZC", "CIBLZC", "SIBLZC", "CIBLZC2", "SIBLZC2", "SBZC2", "LBZC2", "SBMH", "LBMH", "SBMHR", "LBMHR"] :
             crop = kwargs["crop"]
             if crop[0] in ["ALL", [0, self.get_data("NZ")]] or (type(crop[0]) is list and crop[0][0] == 0 and crop[0][1] > 10) :
                 new_kwargs = kwargs
@@ -1834,6 +1836,20 @@ class Dom():
             elif varname in ["CIBLZC", "SIBLZC"]:
                 RI = self.get_data("RI", **new_kwargs)
                 return self.get_Z_TIBL(RI, Z, typ=varname[:4], zaxis=zaxis)
+            elif varname in ["CIBLZC2", "SIBLZC2"]:
+                NBV2 = self.get_data("NBV2", **new_kwargs)
+                return self.get_Z_TIBL2(NBV2, Z, typ=varname[:4], zaxis=zaxis)
+        elif varname in ["CIBLW", "SIBLW"]: #w* TIBL
+            ZC, SH_FLX = self.get_data([varname[:4]+"ZC", "SH_FLX"], **kwargs)
+            W_STAR = (SH_FLX/(constants.BETA*1.2*1000*ZC))**(1/3) #rho=1.2, Cp=1000
+            W_STAR[W_STAR >1e2] = 0.
+            W_STAR[np.isnan(W_STAR)] = 0.
+            return W_STAR
+        elif varname == "W_STAR" :
+            ZCBL, SH_FLX = self.get_data(["ZCBL", "SH_FLX"], **kwargs)
+            W_STAR = (SH_FLX/(constants.BETA*1.2*1000*ZCBL))**(1/3) #rho=1.2, Cp=1000
+            W_STAR[np.isnan(W_STAR)] = 0
+            return W_STAR
         elif varname == "T_STAR" :
             kwargs_sfc = self.copy_kw_get(kwargs)
             if "crop" in kwargs :
@@ -1857,7 +1873,7 @@ class Dom():
             or varname.startswith("GWAVG") or varname.startswith("GWA") or varname.startswith("GWIM2") or varname.startswith("GWCM2")\
             or varname.startswith("GWCSTD") :
             return self.calculate_GW(varname, **kwargs)
-        elif varname.startswith("LLJ_"):
+        elif varname.startswith("LLJ_") or varname.startswith("LLJ2_"):
             return self.calculate_LLJ(varname, **kwargs)
         elif varname in ["CS"] : #Sound velocity
             TV = self.get_data("TV", **kwargs)
@@ -2679,9 +2695,9 @@ class Dom():
             TIBLZ : np.array of N dimension
         """
         if typ == "SIBL" :
-            TIBLIZ = np.nanargmin(RI>0, axis=zaxis)
+            TIBLIZ = np.nanargmax(RI<0, axis=zaxis)
         else :
-            TIBLIZ = np.nanargmin(RI<0, axis=zaxis)
+            TIBLIZ = np.nanargmax(RI>0, axis=zaxis)
         TIBLIZ = np.expand_dims(TIBLIZ, axis=zaxis)
         TIBLZ0 = np.take_along_axis(Z, TIBLIZ-1, axis=zaxis)
         TIBLZ1 = np.take_along_axis(Z, TIBLIZ, axis=zaxis)
@@ -2689,6 +2705,35 @@ class Dom():
         RI1 = np.take_along_axis(RI, TIBLIZ, axis=zaxis)
         TIBLZ = -RI1 * ((TIBLZ0 - TIBLZ1)/(RI0 - RI1)) + TIBLZ1
         # Z_SB = np.squeeze(Z_SB, axis=zaxis)
+        TIBLZ[TIBLIZ==0] = 0
+        return TIBLZ
+    
+    def get_Z_TIBL2(self, NBV2, Z, typ="CIBL", zaxis=0, ZPBL=2000, threshold=1e-4) :
+        """
+        Description
+            Calculate TIBL height from NBV2 profile (height at which NBV2=0) 
+        Parameters
+            RI : np.array of N dimension : the Richardson profile
+            Z : np.array of N dimension : Height above ground in meters
+        Optional
+            typ : str : "CIBL" or "SIBL" for convective or stable TIBL height, respectively
+            zaxis : if RI is more than 1D, we need to know which axis correspond to "z"
+            ZPBL : float, int or np.array, same dimension as WD and Z : if Z is present, only the points below ZPBL are used, default : 2000m
+        Returns 
+            TIBLZ : np.array of N dimension
+        """
+        if typ == "SIBL" :
+            TIBLIZ = np.nanargmax(NBV2<threshold, axis=zaxis)
+        else :
+            TIBLIZ = np.nanargmax(NBV2>threshold, axis=zaxis)
+        TIBLIZ = np.expand_dims(TIBLIZ, axis=zaxis)
+        TIBLZ0 = np.take_along_axis(Z, TIBLIZ-1, axis=zaxis)
+        TIBLZ1 = np.take_along_axis(Z, TIBLIZ, axis=zaxis)
+        N0 = np.take_along_axis(NBV2, TIBLIZ-1, axis=zaxis)
+        N1 = np.take_along_axis(NBV2, TIBLIZ, axis=zaxis)
+        a = (TIBLZ0 - TIBLZ1)/(N0 - N1)
+        b = TIBLZ1 - N1 * a
+        TIBLZ = a*threshold + b
         TIBLZ[TIBLIZ==0] = 0
         return TIBLZ
     
@@ -3470,16 +3515,16 @@ class Dom():
         if not os.path.exists(filename):
             # print("creating postproc file : ", filename)
             init = True
-            ncfout = Dataset(filename, mode="w", format='NETCDF4_CLASSIC')
+            ncfout = netCDF4.Dataset(filename, mode="w", format='NETCDF4_CLASSIC')
         else :
             # print("opening file : ", filename)
             init = False
             if filename in self.output_filenames[key] and self.keep_open:
                 ncfout = self.output_filenames[key][filename]
                 ncfout.close()
-                ncfout = Dataset(filename, mode="a", format='NETCDF4_CLASSIC')
+                ncfout = netCDF4.Dataset(filename, mode="a" , format='NETCDF4_CLASSIC')
             else :
-                ncfout = Dataset(filename, mode="a", format='NETCDF4_CLASSIC')
+                ncfout = netCDF4.Dataset(filename, mode="a" , format='NETCDF4_CLASSIC')
         if init :
             NX = self.get_data("NX")
             NY = self.get_data("NY")
@@ -3533,7 +3578,7 @@ class Dom():
         if varname in ncfout.variables :
             if debug : print("opening with r+")
             ncfout.close()
-            ncfout = Dataset(filename, mode="r+", format='NETCDF4_CLASSIC')
+            ncfout = netCDF4.Dataset(filename, mode="r+", format='NETCDF4_CLASSIC')
             ncout = ncfout[varname]
         else :
             ncout = ncfout.createVariable(varname, typ, dims)
@@ -3549,7 +3594,7 @@ class Dom():
         
         if self.keep_open :
             # we close the Dataset in "a" (append) mode and repoen it in "r" (read) mode
-            self.output_filenames[key][filename] = Dataset(filename, mode="r", format='NETCDF4_CLASSIC')
+            self.output_filenames[key][filename] = netCDF4.Dataset(filename, mode="r", format='NETCDF4_CLASSIC')
         
 #################################################################################################################################
 ######  Geography and location

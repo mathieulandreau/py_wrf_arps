@@ -162,17 +162,47 @@ class CRO(Expe):
             MH = self.get_data("MH", **new_kwargs)
             Z = self.get_data("Z", **new_kwargs)
             IZ = self.get_data("IZ", **new_kwargs)
-            DZ = self.get_data("DZ", **new_kwargs)
             zaxis = 0
             if MH.ndim == 2 :
                 NT, NZ = MH.shape
                 Z = np.array([Z]*NT)
-                DZ = np.array([DZ]*NT)
                 zaxis = 1
-            print(MH.shape, Z.shape, IZ.shape, DZ.shape, zaxis)
+            print(MH.shape, Z.shape, IZ.shape, zaxis)
             p = kwargs["saved"]
-            p["LLJ"], p["LLJ_IZ"], p["LLJ_Z"], p["LLJ_MH"], p["LLJ_PROM"], p["LLJ_WIDTH"] = manage_LLJ.detect_LLJ(MH, Z, IZ, DZ, zaxis, max_height=500, prom_abs=2, prom_rel=0.2, width=50, squeeze=False)
+            p["LLJ"], p["LLJ_IZ"], p["LLJ_Z"], p["LLJ_MH"], p["LLJ_PROM"], p["LLJ_WIDTH"] = manage_LLJ.detect_LLJ(MH, Z, IZ, zaxis, max_height=500, prom_abs=2, prom_rel=0.2, width=50, squeeze=False)
             return np.squeeze(p[varname])
+        elif varname == "LLJ2_Z":
+            LLJ_IZ, LLJ_Z, MH, Z = self.get_data(["LLJ_IZ", "LLJ_Z", "MH", "Z"], **kwargs)
+            if np.all(LLJ_IZ < 0):
+                return LLJ_Z
+            if LLJ_IZ.ndim == 0 : #add time axis
+                LLJ_IZ = np.expand_dims(LLJ_IZ, axis=0)
+                LLJ_Z = np.expand_dims(LLJ_Z, axis=0)
+                MH = np.expand_dims(MH, axis=0)
+                Z = np.expand_dims(Z, axis=0)
+            mask = LLJ_IZ < 0
+            zaxis = 1
+            LLJ_IZ = np.expand_dims(LLJ_IZ.astype(int), axis=zaxis)
+            MHim1 = np.take_along_axis(MH, LLJ_IZ-1, axis=zaxis)
+            MHi = np.take_along_axis(MH, LLJ_IZ, axis=zaxis)
+            MHip1 = np.take_along_axis(MH, LLJ_IZ+1, axis=zaxis)
+            Zim1 = np.take_along_axis(Z, LLJ_IZ-1, axis=zaxis)
+            Zi = np.take_along_axis(Z, LLJ_IZ, axis=zaxis)
+            Zip1 = np.take_along_axis(Z, LLJ_IZ+1, axis=zaxis)
+            if np.any(LLJ_IZ == 0):
+                MHim1[LLJ_IZ==0] = 0
+                Zim1[LLJ_IZ==0] = 0
+            y1 = .5 * (Zim1 + Zi) #Z(i-1/2)
+            y2 = .5 * (Zi + Zip1) #Z(i+1/2)
+            x1 = (MHi - MHim1)/(Zi - Zim1) #DZ_MH(i-1/2)
+            x2 = (MHip1 - MHi)/(Zip1 - Zi) #DZ_MH(i+1/2)
+            # We define LLJ2_Z as the height at which DZ_MH == 0
+            # Thus we search b in the linear function y(x) = ax+b where y is Z and x is DZ_MH
+            # we can proove that :
+            LLJ2_Z = np.squeeze((-y2*x1 + y1*x2)/(x2-x1))
+            #where LLJ is undefined we apply the LLJ_Z default value
+            LLJ2_Z[mask] = LLJ_Z[mask]
+            return np.squeeze(LLJ2_Z)
         elif varname.startswith("LLJ_"):
             return self.calculate_LLJ(varname, **kwargs)
         else :

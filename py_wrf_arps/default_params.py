@@ -286,7 +286,7 @@ default_params = {
         },
         "compute_title" : True,
         "savefig" : False,
-        "NZ" : 10,
+        "NZ" : 1000,
         "grid" : True,
     },
     "NIGHTTIME" : {

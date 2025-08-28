@@ -880,18 +880,19 @@ def get_cmap_extend(clim, Z, cmap, discrete=None, ticks=None, nancolor=None):
         Zmin = np.nanmin(Z)
         Zmax = np.nanmax(Z)
         dZ = (vmax - vmin)/n
-        if not np.isnan(vmin):
-            if ticks is None or ticks == "out" :
-                ticks = np.arange(vmin, vmax+1e-10, dZ)
-            elif ticks == "in" :
-                ticks = np.arange(vmin, vmax+1e-10, dZ)
-                vmin -= dZ/2
-                vmax += dZ/2
-                n += 1
-            if Zmin < vmin-1e-10 :
-                ticks = np.delete(ticks, 0)
-            if Zmax > vmax+1e-10:
-                ticks = np.delete(ticks, -1)
+        if ticks is None or type(ticks) is str:
+            if not np.isnan(vmin):
+                if ticks is None or ticks == "out" :
+                    ticks = np.arange(vmin, vmax+1e-10, dZ)
+                elif ticks == "in" :
+                    ticks = np.arange(vmin, vmax+1e-10, dZ)
+                    vmin -= dZ/2
+                    vmax += dZ/2
+                    n += 1
+                if Zmin < vmin-1e-10 :
+                    ticks = np.delete(ticks, 0)
+                if Zmax > vmax+1e-10:
+                    ticks = np.delete(ticks, -1)
         cmap = get_cmap(cmap, n)
     else : 
         cmap = get_cmap(cmap)

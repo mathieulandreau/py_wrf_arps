@@ -29,8 +29,8 @@ class LLJtraj():
         # Horizontally filtered variables
         self.ps = {}
         self.kws = copy.deepcopy(self.kw)
-        self.kws["DX_smooth"] = 10*self.dom.get_data("DX")/1000
-        self.kws["sigma"] = 10*self.dom.get_data("DX")/1000
+        self.kws["DX_smooth"] = int(10*self.dom.get_data("DX")/1000)
+        self.kws["sigma"] = int(10*self.dom.get_data("DX")/1000)
         self.kws["saved"] = self.ps
         self.TIMEin = self.dom.get_data("TIME", **self.kw)
         self.NT = len(self.TIMEin)
@@ -136,17 +136,21 @@ class LLJtraj():
             if v not in self.pm :  
                 self.pm[v] = np.zeros((self.NT0, self.NY, self.NX))
                 for it0 in range(self.NT0) :
+                    print(v, it0)
                     self.pm[v][it0] = self.dom.interpolate_to_self_grid(self.pt["LAT"][it0], self.pt["LON"][it0], self.pt[v][it0], max_dist_km = 5*self.dom.get_data("DX")/1000)
 
 #################################################################################################################################
 ######  PLOT FIGURES
 ################################################################################################################################# 
 
-    def plot_traj(self, selected_traj=[200, 400, 600]):
+    def plot_traj(self, selected_traj=[200, 400, 600], DIR=None):
+        if DIR == None :
+            DIR = f"t{self.sim.tab_test[0]}/LLJ/traj/"
         Nselect = len(selected_traj)
         for it0 in range(self.NT0) :
             itstr = self.it0_to_datestr(it0)
             TIME_init = manage_time.to_datetime(itstr)
+            ticklabels = manage_time.date_to_str(manage_time.to_datetime(manage_time.to_datetime64(TIME_init) + np.arange(-9, 9.1, 3).astype('timedelta64[h]')), "UTC")
             it_init_in = self.it_init_in[it0, 0]
             selected_i_it = range(it_init_in%6, self.NT, 6)
             params = [{ "typ" : "2DH", "dom" : self.dom, "Z" : "LANDMASK", "title" : "", "plot_cbar" : False,
@@ -157,18 +161,18 @@ class LLJtraj():
                 params.append({
                     "same_ax" : True, "X" : self.pt["X"][it0,i_traj], "Y" : self.pt["Y"][it0,i_traj], "Z" : self.pt["DELTA"][it0,i_traj], "cmap" : self.cmap, "discrete" : 6, 
                     "grid" : False, "clim" : [-9, 9], "kwargs_plt" : {"s" : 10, "edgecolor" : "w", "linewidth" : 0.5},
-                    "plot_cbar" : i_traj == selected_traj[0], "clabel" : "$\Delta^c t$ (h)",
-                    "dpi" : 120, "savepath" : f"t{self.sim.tab_test[0]}/LLJ/traj/04_map_{Nselect}traj_tc{itstr}",
+                    "plot_cbar" : i_traj == selected_traj[0], "clabel" : "Hour (UTC)", "ticks" : np.arange(-9, 9.1, 3), "ticklabels" : ticklabels,
+                    "dpi" : 120, "savepath" : f"{DIR}04_map_{Nselect}traj_tc{itstr}",
                 })
                 params.append({
                     "same_ax" : True, "X" : self.pt["X"][it0,i_traj,selected_i_it], "Y" : self.pt["Y"][it0,i_traj,selected_i_it], "Z" : self.pt["DELTA"][it0,i_traj,selected_i_it], 
-                    "cmap" : self.cmap, "discrete" : 6, "grid" : False, "clim" : [-9, 9], "kwargs_plt" : {"edgecolor" : "w", "linewidth" : .5},
-                    "plot_cbar" : i_traj == selected_traj[0], "clabel" : "$\Delta^c t$ (h)", "plot_cbar" : False,
-                    "dpi" : 120, "savepath" : f"t{self.sim.tab_test[0]}/LLJ/traj/04_map_{Nselect}traj_tc{itstr}",
+                    "cmap" : self.cmap, "discrete" : 6, "grid" : False, "clim" : [-9, 9], "kwargs_plt" : {"edgecolor" : "w", "linewidth" : .5}, "plot_cbar" : False,
                 })
             fig = self.sim.plot_fig(params)
     
-    def plot_profile(self, varname, selected_traj=[200, 400, 600], selected_t0=None, xlim=None, xlabel=None):
+    def plot_profile(self, varname, selected_traj=[200, 400, 600], selected_t0=None, xlim=None, xlabel=None, DIR=None):
+        if DIR == None :
+            DIR = f"t{self.sim.tab_test[0]}/LLJ/traj/"
         if selected_t0 is None : selected_t0 = range(self.NT0)
         if type(selected_t0) in [int, np.int64] : selected_t0 = [selected_t0]
         for it0 in selected_t0 :
@@ -187,7 +191,7 @@ class LLJtraj():
                             "X" : self.pp[varname][it0,i_traj,i_it], "Y" : self.pp["Z"][it0,i_traj,i_it]/1000, 
                             "kwargs_plt" : {"color" : cmap((i_it-it_init_in)/(6*18) + 0.5), "linewidth" : 3}, 
                             "same_ax" : i_it != selected_i_it[str0][0], "ylim":[0, 1.3], "xlim":xlim, "xlabel":xlabel, "Xname":varname, "DX_subplots" : 8, "ylabel" : "$Z$ (km)",
-                            "same_fig" : i_it != selected_i_it[str0][0], "savepath" : f"t{self.sim.tab_test[0]}/LLJ/traj/04_profile_d{self.dom.i_str}_{varname}_tc{itstr}_{str0}_itraj{i_traj}", "dpi" : 120,
+                            "same_fig" : i_it != selected_i_it[str0][0], "savepath" : f"{DIR}04_profile_d{self.dom.i_str}_{varname}_tc{itstr}_{str0}_itraj{i_traj}", "dpi" : 120,
                         })
                         if varname in ["U", "V", "MH", "WD180"] and varname+"2000" in self.pt:
                             params.append({
@@ -280,8 +284,8 @@ class LLJtraj():
                     ncvar = ncfile[typ+varname]
             ncvar.long_name = varname
             ncvar.standard_name = varname
-            ncvar.units = units
-            ncvar.latex_units = latex_units
+            # ncvar.units = units
+            # ncvar.latex_units = latex_units
             if typ == "t" :
                 ncvar[:] = self.pt[varname][it0]
             elif typ == "p" :
@@ -391,6 +395,8 @@ class LLJtraj():
             self.get_sdata(varname)
         else :
             self.get_data(varname)
+            
+            
         self.raw_to_profile(varname)
         self.write_postproc(varname, typ="p")
         if plot :
