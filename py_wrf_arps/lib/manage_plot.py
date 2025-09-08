@@ -470,7 +470,7 @@ def ax_2D_plot(ax, X, Y, Z, clim=None, ticks=None, ticklabels=None, clabel=None,
                 cbar.ax.set_yticklabels(ticklabels)
     return plot_obj
             
-def ax_contour(ax, X, Y, Z, clabel=True, label=None, fontsize=15, it=None, plot_obj=None, kwargs_plt=default_params["CONTOUR"]["kwargs_plt"], **kwargs):
+def ax_contour(ax, X, Y, Z, clabel=True, label=None, labels=None, fontsize=15, it=None, plot_obj=None, kwargs_plt=default_params["CONTOUR"]["kwargs_plt"], **kwargs):
     """
     Description
         make a contour plot with the params
@@ -516,7 +516,12 @@ def ax_contour(ax, X, Y, Z, clabel=True, label=None, fontsize=15, it=None, plot_
     plot_obj = [None, None]
     plot_obj[0] = ax.contour(Xi, Yi, Zi, **kwargs_plt)
     if clabel : 
-        plot_obj[1] = ax.clabel(plot_obj[0], plot_obj[0].levels, inline=True, fontsize=fontsize)
+        fmt = None
+        if labels is not None :
+            fmt = {}
+            for l, s in zip(plot_obj[0].levels, labels):
+                fmt[l] = s
+        plot_obj[1] = ax.clabel(plot_obj[0], plot_obj[0].levels, inline=True, fmt=fmt, fontsize=fontsize)
     if label is not None :
         ax.plot(0, 0, kwargs_plt["colors"], label=label)
     return plot_obj

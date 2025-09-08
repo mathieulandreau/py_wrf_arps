@@ -70,7 +70,8 @@ class CRO(Expe):
     
     def get_data(self, varname, itime="ALL_TIMES", time_slice=None, crop=None, saved=None, **kwargs):
         if saved is None : saved = {}
-        if varname in saved : return np.squeeze(saved[varname])
+        if varname in saved : 
+            return np.squeeze(saved[varname])
         if time_slice is None :
             time_slice = manage_time.get_time_slice(itime, self.date_list)
         if crop is not None :
@@ -170,25 +171,27 @@ class CRO(Expe):
             print(MH.shape, Z.shape, IZ.shape, zaxis)
             p = kwargs["saved"]
             p["LLJ"], p["LLJ_IZ"], p["LLJ_Z"], p["LLJ_MH"], p["LLJ_PROM"], p["LLJ_WIDTH"] = manage_LLJ.detect_LLJ(MH, Z, IZ, zaxis, max_height=500, prom_abs=2, prom_rel=0.2, width=50, squeeze=False)
-            return np.squeeze(p[varname])
+            return self.get_data(varname, **kwargs)
         elif varname == "LLJ2_Z":
-            LLJ_IZ, LLJ_Z, MH, Z = self.get_data(["LLJ_IZ", "LLJ_Z", "MH", "Z"], **kwargs)
+            LLJ_IZ = self.get_data("LLJ_IZ", **kwargs)
+            LLJ_Z = self.get_data("LLJ_Z", **kwargs)
+            MH = self.get_data("MH", **kwargs)
+            Z = self.get_data("Z", **kwargs)
             if np.all(LLJ_IZ < 0):
                 return LLJ_Z
             if LLJ_IZ.ndim == 0 : #add time axis
                 LLJ_IZ = np.expand_dims(LLJ_IZ, axis=0)
                 LLJ_Z = np.expand_dims(LLJ_Z, axis=0)
                 MH = np.expand_dims(MH, axis=0)
-                Z = np.expand_dims(Z, axis=0)
             mask = LLJ_IZ < 0
             zaxis = 1
             LLJ_IZ = np.expand_dims(LLJ_IZ.astype(int), axis=zaxis)
             MHim1 = np.take_along_axis(MH, LLJ_IZ-1, axis=zaxis)
             MHi = np.take_along_axis(MH, LLJ_IZ, axis=zaxis)
             MHip1 = np.take_along_axis(MH, LLJ_IZ+1, axis=zaxis)
-            Zim1 = np.take_along_axis(Z, LLJ_IZ-1, axis=zaxis)
-            Zi = np.take_along_axis(Z, LLJ_IZ, axis=zaxis)
-            Zip1 = np.take_along_axis(Z, LLJ_IZ+1, axis=zaxis)
+            Zim1 = Z[LLJ_IZ-1]
+            Zi = Z[LLJ_IZ]
+            Zip1 = Z[LLJ_IZ+1]
             if np.any(LLJ_IZ == 0):
                 MHim1[LLJ_IZ==0] = 0
                 Zim1[LLJ_IZ==0] = 0
@@ -249,7 +252,7 @@ class CRO(Expe):
         print(np.array([lon1, self.lon_lidar, lon2]), np.array([lat1, self.lat_lidar, lat2]))
         return np.array([lon1, self.lon_lidar, lon2]), np.array([lat1, self.lat_lidar, lat2])
         
-    def write_postproc(self, varname, var, dims, long_name="", standard_name="", units="", latex_units="", typ=np.float32) :
+    def write_postproc(self, varname, var, dims, long_name="", standard_name="", units="", latex_units="", typ=np.float32, debug=False) :
         """
         Description
             Write a variable in the postproc datafile

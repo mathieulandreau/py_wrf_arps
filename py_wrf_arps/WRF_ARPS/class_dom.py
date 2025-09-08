@@ -1841,13 +1841,13 @@ class Dom():
                 return self.get_Z_TIBL2(NBV2, Z, typ=varname[:4], zaxis=zaxis)
         elif varname in ["CIBLW", "SIBLW"]: #w* TIBL
             ZC, SH_FLX = self.get_data([varname[:4]+"ZC", "SH_FLX"], **kwargs)
-            W_STAR = (SH_FLX/(constants.BETA*1.2*1000*ZC))**(1/3) #rho=1.2, Cp=1000
+            W_STAR = (ZC*constants.BETA*SH_FLX/(1.2*constants.CP))**(1/3) #rho=1.2
             W_STAR[W_STAR >1e2] = 0.
             W_STAR[np.isnan(W_STAR)] = 0.
             return W_STAR
         elif varname == "W_STAR" :
             ZCBL, SH_FLX = self.get_data(["ZCBL", "SH_FLX"], **kwargs)
-            W_STAR = (SH_FLX/(constants.BETA*1.2*1000*ZCBL))**(1/3) #rho=1.2, Cp=1000
+            W_STAR = (ZCBL*constants.BETA*SH_FLX/(1.2*constants.CP))**(1/3) #rho=1.2
             W_STAR[np.isnan(W_STAR)] = 0
             return W_STAR
         elif varname == "T_STAR" :
@@ -1969,6 +1969,7 @@ class Dom():
             ADxx_ : get the component along direction xx in meteo convention (ex. AD225_U = wind component coming from south-west)
             GWM2_ or GWM4_ : get the component across direction GWM2D or GWM4D which is perpendicular to the gravity waves
             ADWD_ : get the component along wind direction
+            ADLLJ_ : get the component along LLJ wind direction
             NORM_ : get the norm of the vector (NORM_U = np.sqrt(U**2 + V**2))
             DIR_ : get the direction of the vector in degree in meteo convention (DIR_U = manage_angle.UV2WD_deg(U, V))
         varname 1 can be :
@@ -1994,8 +1995,9 @@ class Dom():
             #     zaxis = self.find_axis("z", dim=3, **kwargs)
             #     angle_rad = np.expand_dims(angle_rad, axis=zaxis)
         elif varname.startswith("ADWD_"):    
-            WD = self.get_data("WD", **kwargs)
-            angle_rad = np.deg2rad(WD)
+            angle_rad = np.deg2rad(self.get_data("WD", **kwargs))
+        elif varname.startswith("ADLLJ_"):    
+            angle_rad = np.deg2rad(self.get_data("LLJ_WD", **kwargs))
         elif varname.startswith("AD") :    
             angle_deg = int(varname[2:ind])
             angle_rad = np.deg2rad(angle_deg)
