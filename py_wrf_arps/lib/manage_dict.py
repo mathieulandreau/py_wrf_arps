@@ -36,7 +36,7 @@ def print_dict(d, title=None, prefix=""):
                 print_dict(d[k], None, prefix+"   ")
             elif type_k in [str, int, float, bool]:
                 print(prefix+k,":", d[k])
-            elif manage_list.is_iterable(d[k]) and len(d[k]) < 10 :
+            elif manage_list.is_iterable(d[k]) and len(d[k]) < 10 and not manage_list.is_iterable(d[k][0]):
                 print(prefix+k,":", d[k])
             else :
                 print(prefix+k,":", type_k)

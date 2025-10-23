@@ -807,10 +807,9 @@ def ax_WD_hist(ax, X, ylim=None, label=None, it=None, plot_obj=None, kwargs_plt=
     return plot_obj
     
 def ax_date(ax, x, y, Z, it=None, plot_obj=None, kwargs_plt=default_params["DATE"]["kwargs_plt"], **kwargs):
-    if it is not None :
-        Zi = Z[it]
-    else :
-        Zi = Z
+    Zi = Z[it] if it is not None and not type(Z) in [str] else Z
+    xi = x[it] if it is not None and manage_list.is_iterable(x) and not type(x) in [str] else x
+    yi = y[it] if it is not None and manage_list.is_iterable(y) and not type(y) in [str] else y
         
     if type(Zi) is str :
         pass
@@ -827,25 +826,26 @@ def ax_date(ax, x, y, Z, it=None, plot_obj=None, kwargs_plt=default_params["DATE
     else :
         Zi = str(Zi)
         
-    if type(x) is str :
+    if type(xi) is str :
         x0, x1 = ax.get_xlim()
         dx = x1-x0
-        if x == "right" :
-            x = x1-0.2*dx
+        if xi == "right" :
+            xi = x1-0.25*dx
         else :
-            x = x0+0.01*dx
-    if type(y) is str :
+            xi = x0+0.01*dx
+    if type(yi) is str :
         y0, y1 = ax.get_ylim()
         dy = y1-y0
-        if y == "bottom" :
-            y = y0+0.05*dy
+        if yi == "bottom" :
+            yi = y0+0.05*dy
         else :
-            y = y1-0.05*dy
+            yi = y1-0.05*dy
             
     if plot_obj is not None :
         plot_obj.set_text(Zi)
+        plot_obj.set_position((xi, yi))
     else :
-        plot_obj = ax.text(x, y, Zi, **kwargs_plt)
+        plot_obj = ax.text(xi, yi, Zi, **kwargs_plt)
     return plot_obj
 
 def ax_vline(ax, X, label=None, it=None, plot_obj=None, kwargs_plt=default_params["AXVLINE"]["kwargs_plt"], **kwargs):
@@ -967,6 +967,33 @@ def nice_bounds(axis_start, axis_end, num_ticks=10):
         axis_end = math.ceil(axis_end / nice_tick) * nice_tick
 
     return axis_start, axis_end, nice_tick
+
+def plot_log(X, powermin=-2):
+    logX = np.zeros(X.shape)
+    logX[X>=10**powermin] = np.log10(X[X>=10**powermin]) - powermin
+    logX[X<=-10**powermin] = -np.log10(-X[X<=-10**powermin]) + powermin
+    return logX
+
+def plot_log_ticks(powermin=-2, powermax=1, critical=0.25):
+    # npower = int(np.ceil(np.max(np.abs(logX))))
+    npower = powermax - powermin
+    majorticks = np.arange(-npower, npower+1, 1)
+    majorticklabels = []
+    for ip in range(npower, 0, -1):
+        majorticklabels.append("-10$^{"+str(int(ip+powermin))+"}$")
+    majorticklabels.append("$\pm$10$^{"+str(int(powermin))+"}$")
+    for ip in range(1, npower+1):
+        majorticklabels.append("10$^{"+str(int(ip+powermin))+"}$") 
+        
+    minorticks = []
+    for ip in range(-npower+1, 1):
+        for i in range(9):
+            minorticks.append(-np.log10(i+2)+ip)
+    for ip in range(0, npower):
+        for i in range(9):
+            minorticks.append(np.log10(i+2)+ip)
+    logXcr = np.log10(critical) - powermin
+    return majorticks, majorticklabels, minorticks, logXcr
 
 def test_colormaps():
     params = []

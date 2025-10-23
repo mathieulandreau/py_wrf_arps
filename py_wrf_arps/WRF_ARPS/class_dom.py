@@ -486,7 +486,7 @@ class Dom():
                 return self.date_list_stats[time_slice] if return_val else None
             
             # for WD or COV or ... , it is better to interpolate or average other quantities and then calculate, so we skip this now and go to calculate first
-            avg_before = (varname.startswith("WD") or varname.startswith("MH") or varname.startswith("SCORER") or self.is_statistics(varname, avg_stats) or self.is_vectorial(varname) or varname.upper() in ["DGWRDT", "GAMMA", "IT", "IZ", "IY", "IX", "MG"])
+            avg_before = (varname.startswith("WD") or varname.startswith("MH") or varname.startswith("SCORER") or self.is_statistics(varname, avg_stats) or self.is_normdir(varname) or varname.upper() in ["DGWRDT", "GAMMA", "IT", "IZ", "IY", "IX", "MG"])
             interp_before = avg_before or varname.startswith("X2DV")
             smooth_before = interp_before or ("TIME" in varname or varname in ["X", "Y", "LON", "LAT"] or varname[:2] in ["DX", "DY"] \
                              or "LANDMASK" in varname or "COASTDIST" in varname or varname[:3] in ["COR", "CGX", "CGY", "CDI"]\
@@ -968,6 +968,19 @@ class Dom():
             or varname.startswith("GWM4_")\
                )
     
+    def is_normdir(self, varname):
+        """
+        Description
+            Find if a variable is a norm or dir of a vector
+        Parameters
+            self : Dom
+            varname : str : name of the variable 
+        Output
+            boolean : True if vectorial variable, False otherwise
+        25/07/2024 : Mathieu LANDREAU
+        """
+        return varname.startswith("NORM_") or varname.startswith("DIR_")
+    
     def is_statistics(self, varname, avg_stats=False):
         """
         Description
@@ -1385,6 +1398,9 @@ class Dom():
         elif varname.endswith("_KM") :
             varname_temp = varname[:-3]
             return self.get_legend(varname_temp, *args, units="km", **kwargs)
+        elif varname in ["WD180"] :
+            varname_temp = self.find_similar_variable(varname)
+            return self.get_legend(varname_temp, *args, **kwargs)
         else :
             return varname
     
@@ -2081,7 +2097,7 @@ class Dom():
             elif varname1[:4] in ["DYC_", "DYW_"] :
                 varname2 = "DX" + varname1[2] + "_" + varname1[4:]
             else :
-                print(f"warning in Dom.calculate rotation, unknown varname1 = {varname1}, returning the original data")
+                print(f"warning in Dom.calculate rotation, unknown varname1 = {varname1}, cannot apply {prefix}, returning the original data")
                 return self.get_data(varname1, **kwargs)
             var1 = self.get_data(varname1, **kwargs)
             var2 = self.get_data(varname2, **kwargs)

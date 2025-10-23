@@ -650,7 +650,7 @@ class Proj():
                             params_temp = {
                                 "same_ax" : True,
                                 "typ" : "RECTANGLE",
-                                "rlabel" : dom_i.software + dom_i.i_str,
+                                #"rlabel" : dom_i.software + dom_i.i_str,
                                 "xy" : xy,
                                 "width" : width,
                                 "height" : height,

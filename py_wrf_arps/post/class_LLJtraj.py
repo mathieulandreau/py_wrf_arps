@@ -158,10 +158,11 @@ class LLJtraj():
             },{ "typ" : "DATE", "kwargs_get_data" : {"itime" : itstr}, "kwargs_plt" : {"color" : [0.7, 0.7, 0.7],},
             }]
             for i_traj in selected_traj:
+                # Magouille sur la cmap pour avoir une legend des heures dans le bon sens
                 params.append({
-                    "same_ax" : True, "X" : self.pt["X"][it0,i_traj], "Y" : self.pt["Y"][it0,i_traj], "Z" : self.pt["DELTA"][it0,i_traj], "cmap" : self.cmap, "discrete" : 6, 
+                    "same_ax" : True, "X" : self.pt["X"][it0,i_traj], "Y" : self.pt["Y"][it0,i_traj], "Z" : -self.pt["DELTA"][it0,i_traj], "cmap" : self.cmap+"_r", "discrete" : 6, 
                     "grid" : False, "clim" : [-9, 9], "kwargs_plt" : {"s" : 10, "edgecolor" : "w", "linewidth" : 0.5},
-                    "plot_cbar" : i_traj == selected_traj[0], "clabel" : "Hour (UTC)", "ticks" : np.arange(-9, 9.1, 3), "ticklabels" : ticklabels,
+                    "plot_cbar" : i_traj == selected_traj[0], "clabel" : "Hour (UTC)", "ticks" : np.arange(-9, 9.1, 3), "ticklabels" : ticklabels[::-1],
                     "dpi" : 120, "savepath" : f"{DIR}04_map_{Nselect}traj_tc{itstr}",
                 })
                 params.append({
@@ -187,8 +188,12 @@ class LLJtraj():
                 params = []
                 for i_traj in selected_traj:
                     for i_it in selected_i_it[str0]:
+                        xdata = self.pp[varname][it0,i_traj,i_it]
+                        ydata = self.pp["Z"][it0,i_traj,i_it]/1000
+                        if varname == "WD180":
+                            ydata, xdata = manage_angle.split_angles(ydata, xdata)
                         params.append({
-                            "X" : self.pp[varname][it0,i_traj,i_it], "Y" : self.pp["Z"][it0,i_traj,i_it]/1000, 
+                            "X" : xdata, "Y" : ydata, 
                             "kwargs_plt" : {"color" : cmap((i_it-it_init_in)/(6*18) + 0.5), "linewidth" : 3}, 
                             "same_ax" : i_it != selected_i_it[str0][0], "ylim":[0, 1.3], "xlim":xlim, "xlabel":xlabel, "Xname":varname, "DX_subplots" : 8, "ylabel" : "$Z$ (km)",
                             "same_fig" : i_it != selected_i_it[str0][0], "savepath" : f"{DIR}04_profile_d{self.dom.i_str}_{varname}_tc{itstr}_{str0}_itraj{i_traj}", "dpi" : 120,
@@ -196,6 +201,7 @@ class LLJtraj():
                         if varname in ["U", "V", "MH", "WD180"] and varname+"2000" in self.pt:
                             params.append({
                                 "X" : self.pt[varname+"2000"][it0,i_traj,i_it], "Y" : 1.28, "same" : -1, "same_ax" : True, "same_fig" : True, "style" : "o",
+                                "xlabel" : "$WD$" if varname == "WD180" else None,
                             })
                 fig = self.sim.plot_fig(params)
 

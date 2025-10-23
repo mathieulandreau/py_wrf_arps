@@ -230,9 +230,10 @@ class SBTKE():
         mask2 = self.p["SBZC"] > 1
         mask = np.logical_and(self.dist2D<-2, mask2)
         params = [{
-            "X" : (self.dist2D+1.5*(.5-dec))[mask2], "Y" : (self.HOUR2D+.1*(.5-dec))[mask2]*100, "Z" : self.p["TKEpeak"][mask2]>0.0001, 
-            "xlim" : [-15.5, 7], "ylim" : [1190, 1810], "xticks" : np.arange(-15, 7, 3), "DX_subplots" : 10,
-            "cmap" : "Reds", "kwargs_plt" : {"s" : 40, "edgecolor" : "k", "linewidth" : .5}, "plot_cbar" : False, "clim" : [0, 1.8], 
+            "X" : (self.dist2D+1.5*(.5-dec))[mask2], "Y" : (self.HOUR2D+.1*(.5-dec))[mask2]*100, "Z" : np.log10(self.p["TKEpeak"][mask2]+1e-10), 
+            "xlim" : [-15.5, 7], "ylim" : [1190, 1810], "xticks" : [-12, -8, -4, -2, 0, 4], "DX_subplots" : 10,
+            "cmap" : "Reds", "kwargs_plt" : {"s" : 40, "edgecolor" : "k", "linewidth" : .2}, "plot_cbar" : True, "clim" : [-3, 1],  "discrete" : 4,
+            "ticklabels" : ["0.01", "0.1", "1", "10"], "clabel" : "$k_{tot}$ peak value (m$^2$.s$^{-2}$)",
             "xlabel" : "$X_c$ (km)", "ylabel" : "Hour (UTC)",
             "dpi" : 120,  "savepath" : f"{self.figdir}TKE_peak_presence_dist_TIME",
         },{ "typ" : "AXVLINE",
@@ -244,15 +245,19 @@ class SBTKE():
             "xlabel" : "$Z_{SB}$ (m)", "ylabel" : "Height of the $k_{tot}$ peak (m)", "clabel" : "$X_c$ (km)",
             "same_fig" : False, "dpi" : 120, "savepath" : f"{self.figdir}TKE_peak_Zpeak_Zc_dist"
         },{ "X" : [0, 300], "Y" : [0, 300], "style":"k", "same_ax" : True,
+        },{ "X" : [0, 250], "Y" : [50, 300], "style":"k--", "same_ax" : True,
+        },{ "X" : [50, 300], "Y" : [0, 250], "style":"k--", "same_ax" : True,
         },{ "X" : np.array([-1, -1]), "Y" : np.array([-100, -100]), "Z" : np.array([0, 0]), "cmap" : "Greys_r", "clim" : [0, 1],
             "kwargs_plt" : {"s" : [50]}, "label" : "0.5 m$^2$.s$^{-2}$", "same_ax" : True, "plot_cbar" : False,
         },{ "X" : np.array([-1, -1]), "Y" : np.array([-100, -100]), "Z" : np.array([0, 0]), "cmap" : "Greys_r", "clim" : [0, 1],
             "kwargs_plt" : {"s" : [10]}, "label" : "0.1 m$^2$.s$^{-2}$", "same_ax" : True, "plot_cbar" : False, "legend_loc" : "lower left",
 
-        },{ "same" : -4, "Z" : self.HOUR2D[mask]*100,
+        },{ "same" : -6, "Z" : self.HOUR2D[mask]*100,
             "cmap" : "Oranges", "clim" : [1200, 1800], "discrete" : 6, "clabel" : "Hour (UTC)",
             "savepath" : f"{self.figdir}TKE_peak_Zpeak_Zc_time",
-        },{ "same" : -4,
+        },{ "same" : -6,
+        },{ "same" : -6,
+        },{ "same" : -6,
         }]
         return self.sim.plot_fig(params)
 

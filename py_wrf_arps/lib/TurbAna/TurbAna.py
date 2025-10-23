@@ -1019,7 +1019,7 @@ def plot_turb_tri(method='w/o data', coors=None, fig=None):
     
     return fig
 
-def plot_bary_tri(method='w/o data', coors=None, fig=None):
+def plot_bary_tri(method='w/o data', coors=None, fig=None, plot_axis=False):
     '''
     Purpose: plot barycentric map
 
@@ -1059,6 +1059,24 @@ def plot_bary_tri(method='w/o data', coors=None, fig=None):
     plt.text(0.47,0.91,'3C',fontsize=16)
     plt.text(-0.1,-0.05,'2C',fontsize=16)
     plt.text(1.05,-0.05,'1C',fontsize=16)
+    
+    # plot axis xb, yb
+    if plot_axis :
+        plt.plot([0.5]*2, [0, np.sqrt(3)/2], "k")
+        plt.plot([0, 1], [0, 0], "k")
+        plt.plot([0.5]*5, np.arange(0, np.sqrt(3)/2, .2), "k+")
+        plt.plot(np.arange(0, 1, .2), [0]*5, "k+")
+        plt.text(0.53, np.sqrt(3)/4, "$y_b$", fontsize = 15)
+        plt.text(0.51, .19, "0.2", fontsize = 10)
+        plt.text(0.51, .39, "0.4", fontsize = 10)
+        plt.text(0.51, .59, "0.6", fontsize = 10)
+        plt.text(.48, -.06, "$x_b$", fontsize = 15)
+        plt.text(-.01, -.04, "0", fontsize = 10)
+        plt.text(.18, -.04, "0.2", fontsize = 10)
+        plt.text(.38, -.04, "0.4", fontsize = 10)
+        plt.text(.58, -.04, "0.6", fontsize = 10)
+        plt.text(.78, -.04, "0.8", fontsize = 10)
+        plt.text(.99, -.04, "1", fontsize = 10)
 
     return fig
 
