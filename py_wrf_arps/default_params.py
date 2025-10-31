@@ -99,7 +99,7 @@ default_params = {
             "edgecolor" : "k",
             "linewidth" : 1,
             "facecolor" : "none",
-            "zorder" : 100, # Remove this if you don't want to draw something above the rectangle
+            "zorder" : 100, # Remove this if you want to draw something above the rectangle
         },
         "compute_title" : True,
         "savefig" : False,

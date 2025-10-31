@@ -62,35 +62,27 @@ class Proj():
 ######  Init
 #################################################################################################################################
     def __init__(self, proj_dir, data_dir, tab_dom_str, tab_arps_wrf, tab_expe_str=[], tab_test=None, aerradii=None, JeSuis=None, keep_open=False):
-        """
-        Plot 2D figure
-
+        """ 
+        Object containing several domain (Dom objects) or experimental data (Expe objects) to manage the post-processing, and to prepare the parameters for figures
         Parameters
-        ----------
-        self: Proj
-        
-        -------------- If JeSuis == "Mathieu" or None or "Test": 
-        proj_dir (str): Global path toward all the simulations directory, see manage_path.proj_dir
-        data_dir (str): name of this simulation directory #"02_20200519/"
-        tab_dom_str (list of str): list of domaine names #["05", "04", "03", "02"]
-        tab_wrf_arps (list of str): list of softwares, strings can be for the moment : "ARPS", "WRF", "WPS", "WRFinput", "AROME" (not case sensitive)
-
+            self: Proj
+            -------------- If JeSuis == "Mathieu" or None or "Test": 
+            proj_dir (str): Global path toward all the simulations directory, see manage_path.proj_dir
+            data_dir (str): name of this simulation directory #"02_20200519/"
+            tab_dom_str (list of str): list of domaine names #["05", "04", "03", "02"]
+            tab_wrf_arps (list of str): list of softwares, strings can be for the moment : "ARPS", "WRF", "WPS", "WRFinput", "AROME" (not case sensitive)
+            tab_test (list of str): subdivision of the datadir
         Optional
-        ----------
-        tab_expe_str (list of str): list of other dataset that are loaded, strings can be for the moment : "CRO", "LI1", "CAR", "SEM", "TEI"
-        tab_test (list of str): subdivision of the data_dir simulation
-        aerradii : related to aerosols (used by Benjamin with arps but many things have changed since)
-        JeSuis : string : if "Mathieu" or "M", the directories containings all the data are deduced with proj_dir and data_dir.
-                          add your own name and organization if needed
-        keep_open : boolean : if True, keep all output files open for read. It might be a little faster (I am not really sure in fact) but it needs more disk space
-
-        Returns
-        ----------
-
+            tab_expe_str (list of str): list of other dataset that are loaded, strings can be for the moment : "CRO", "LI1", "CAR", "SEM", "TEI"
+            tab_test (list of str): subdivision of the data_dir simulation
+            aerradii : related to aerosols (used by Benjamin with arps but many things have changed since)
+            JeSuis : string : if "Mathieu" or "M", the directories containings all the data are deduced with proj_dir and data_dir.
+                              add your own name and organization if needed
+            keep_open : boolean : if True, keep all output files open for read. It might be a little faster (I am not really sure in fact) but it needs more disk space
         Author(s)
-        ----------
-        Benjamin LUCE
-        14/12/2022 : Modification of path by Mathieu Landreau
+            Benjamin LUCE
+            14/12/2022 : Modification of path by Mathieu Landreau
+            2022-2025 : Several modifications by Mathieu Landreau
         """   
         
         if type(tab_arps_wrf) is str : tab_arps_wrf = [tab_arps_wrf]
@@ -269,9 +261,7 @@ class Proj():
                 return tab_temp.index(dom_str)
      
     def get_inner_domains(self, dom):
-        """
-        Description
-            Find the nested domains of dom
+        """ Find the nested domains of dom
         Parameters
             dom : can be any type managed by Proj.get_dom
         Returns 
@@ -286,9 +276,7 @@ class Proj():
         return dom_list
             
     def get_expe(self, expe_input):
-        """
-        Description
-            Get the Expe object from expe_input
+        """ Get the Expe object from expe_input
         Parameters
             expe_input : can be 
                 Expe : return itself
@@ -307,6 +295,8 @@ class Proj():
             raise(Exception("error : cannot identify the expe object from the input : ", expe_input, ". Should be either of type Expe, int or str"))
        
     def get_dom_expe(self, dom_expe_input):
+        """ Get the Dom or Expe object from dom_expe_input
+        """
         try : 
             return self.get_dom(dom_expe_input)
         except : 
@@ -319,9 +309,7 @@ class Proj():
 ######  Relay to Dom methods
 #################################################################################################################################
     def get_data(self, dom_expe, varname, **kwargs):
-        """
-        Description
-            Get data from dom by calling dom.get_data
+        """ Get data from dom by calling dom_expe.get_data
         Parameters
             dom : can be any type managed by Proj.get_dom
             varname : str : name of the variable to get (see ARPS_WRF_VARNAME_DICT)
@@ -350,9 +338,7 @@ class Proj():
             raise(Exception("error, unknown type for varname in Dom.get_data : " + str(type(varname)) + ", varname = " + varname))
     
     def get_ts(self, dom, *args, **kwargs):
-        """
-        Description
-            Get tslist from domWRF by calling domWRF.get_ts
+        """ Get tslist from domWRF by calling domWRF.get_ts
         Parameters
             dom : can be any type managed by Proj.get_dom and must be a WRF domain
         *args :
@@ -367,9 +353,7 @@ class Proj():
         return dom.get_ts(*args, **kwargs)
     
     def get_lat_lon(self, point) :
-        """
-        Description
-            Get the latitude and longitude of a point
+        """ Get the latitude and longitude of a point
         Parameters
             point : can be 
                 str : name of an Expe object
@@ -389,9 +373,7 @@ class Proj():
             raise(Exception("error : cannot get lat and lon from :", point))
             
     def nearest_index(self, dom, point, **kwargs) :
-        """
-        Description
-            Get the nearest dom grid position from point
+        """ Get the nearest dom grid position from point
         Parameters
             dom : can be any type managed by Proj.get_dom
             point : can be 
@@ -405,10 +387,7 @@ class Proj():
                 
     
     def get_zoom_index(self, dom, points):
-        """
-        Description
-            return the indices iy1, iy2, ix1, ix2 to zoom horizontally in a domain
-            These indices are then use to crop the data and read only the data contained in the zoom domain
+        """ return the indices iy1, iy2, ix1, ix2 to zoom horizontally in a domain. These indices are then use to crop the data and read only the data contained in the zoom domain
         Parameters
             dom : can be any type managed by Proj.get_dom
             points : can be 
@@ -438,9 +417,7 @@ class Proj():
             return self.get_zoom_index(dom, [[UPPER_LEFT.lat, UPPER_LEFT.lon], [LOWER_RIGHT.lat, LOWER_RIGHT.lon]]) 
         
     def get_line(self, dom, line):
-        """
-        Description
-            return the coordinates y1, y2, x1, x2 to draw a line on a 2D horizontal plot
+        """ return the coordinates y1, y2, x1, x2 to draw a line on a 2D horizontal plot
         Parameters
             dom : can be any type managed by Proj.get_dom
             points : can be 
@@ -456,9 +433,7 @@ class Proj():
         return dom.get_line(line)
             
     def get_point(self, dom, point):
-        """
-        Description
-            return the coordinates y, x, to plot a point on a 2D horizontal plot
+        """ return the coordinates y, x, to plot a point on a 2D horizontal plot
         Parameters
             dom : can be any type managed by Proj.get_dom
             point : something to deduce the index, can be
@@ -474,9 +449,7 @@ class Proj():
         return dom.get_point(point)
     
     def get_points_for_vcross(self, dom, points):
-        """
-        Description
-            return the coordinates [[lat1, lon1], [lat2, lon2]] to use vertcross
+        """ return the coordinates [[lat1, lon1], [lat2, lon2]] to use vertcross
         Parameters
             dom : the domain on which we want to compute vertcross
             points : something to deduce the coordinates, can be
@@ -503,10 +476,12 @@ class Proj():
     
     
     def get_rectangle_params(self, dom, rec_in, Xname="X_KM", Yname="Y_KM"):
-        """
-        return the index [(x1,x2), Dx, Dy] to plot a rectangle on a 2D horizontal plot
-        dom : the domain on which we want to zoom
-        rec_in : anything that can be read by get_zoom_index 
+        """ return the index [(x1,x2), Dx, Dy] to plot a rectangle on a 2D horizontal plot
+        Parameters
+            dom : the domain on which we want to zoom
+            rec_in : anything that can be read by get_zoom_index 
+        Optional
+            Xname, Yname: name of the X and Y variable (either X_KM, Y_KM or X, Y)
         """
         if type(rec_in) is list and len(rec_in) == 3 and type(rec_in[0]) is tuple :
             return rec_in
@@ -526,9 +501,7 @@ class Proj():
 ################################################################################################################################# 
     
     def plot_fig(self, params_list, **kwargs):
-        """
-        Description
-            Plot the figure from parameters
+        """Plot the figure from parameters
             1- Prepare the parameters for plot
             2- Get the data in case it is not already done
             3- Generate a title and a path for save
@@ -553,9 +526,7 @@ class Proj():
         return fig
     
     def prepare_params_for_get(self, params_list, **kwargs):
-        """
-        Description
-            1st step of params preparation for plot before getting the data
+        """ 1st step of params preparation for plot before getting the data
             if plot_LAT_LON and plot_LANDMASK in 2DH plot : 
                 add some CONTOUR dictionnary to the list of params with same_ax = True to plot on the same figure
         Parameters
@@ -566,6 +537,7 @@ class Proj():
         for i_params, params in enumerate(params_list) :
             #if same==True, copy all the parameters of the last plot
             #if same==-2, copy all the parameters of the second last plot, ...
+            #if same==1, copy all the parameters of the second plot, ...
             if "same" in params :
                 if type(params["same"]) is int : 
                     if (params["same"] < 0): #ex : -1
@@ -687,14 +659,17 @@ class Proj():
                 for varname_temp in ["levels", "points", "ZP"]:
                     if varname_temp in params and not varname_temp in vinterp :
                         vinterp[varname_temp] = params[varname_temp] 
+                # transform "points" for vinterp
                 vinterp["points"] = self.get_points_for_vcross(dom, vinterp["points"])
                 params["kwargs_get_data"]["vinterp"] = vinterp
                 if not "Y" in params :
                     params["Y"] = manage_dict.getp("ZP", vinterp, "ZP") 
             elif typename in ["QUIVER", "BARBS"] :
+                # transport "color" to "kwargs_plt"
                 if "color" in params :
                     params["kwargs_plt"]["color"] = params["color"]
             
+            # Add the land-sea color bar to the 2DV plot if desired
             if typename == "2DV" :
                 params["plot_landsea"] = manage_dict.getp("plot_landsea", params, default=True)
             else :
@@ -706,6 +681,7 @@ class Proj():
                     params["kwargs_LANDSEA"] = None
                 params_add.append(params_LANDSEA)
                 
+            # Add the day-night color bar to the ZT or time plot if desired
             if typename == "ZT" or ("X" in params and type(params["X"]) is str and "TIME" in params["X"]) or ("X" in params and type(params["X"]) in [list, np.array, np.ndarray] and type(np.array(params["X"]).item(0)) is datetime.datetime) :
                 params["plot_nighttime"] = manage_dict.getp("plot_nighttime", params, default=True)
             else :
@@ -714,15 +690,13 @@ class Proj():
                 if "kwargs_NIGHTTIME" in params :
                     params_add.append(manage_dict.select_params(copy.copy(params["kwargs_NIGHTTIME"]), default_params["NIGHTTIME"]))
                     params["kwargs_NIGHTTIME"] = None
-                #else :
-                #    params_add.append(copy.copy(default_params["NIGHTTIME"]))
             params_list2.append(params)
             for params_supp in params_add :
                 params_list2.append(params_supp)
         params_list = copy.copy(params_list2)
         #manage_dict.print_dict(params_list, "before kwargs_nighttime")
         
-        #The parameters "video" must be extended to the whole plot
+        # Extend the parameter "video" to the whole figure
         ip0 = 0
         is_video = False
         is_contour = False
@@ -747,7 +721,7 @@ class Proj():
             if is_contour and p["typ"] in ["LANDMASK", "LAT", "LON"] :
                 p["animate"] = is_video
         
-        #The parameters "plot_nighttime" must be extended to the whole ax   
+        # Extend the parameter "plot_nighttime" to the whole ax 
         ip0 = 0
         plot_nighttime = False
         for i_params, params in enumerate(params_list) :
@@ -774,7 +748,7 @@ class Proj():
         if plot_nighttime :
             params_list[ip1-1]["kwargs_NIGHTTIME"] = kwargs_NIGHTTIME 
         
-        #NIGHTTIME, DATE must be at the end to be placed in the ax on the good position
+        # Move "NIGHTTIME" and "DATE" at the end of the ax
         params_list2 = []
         for i_params, params in enumerate(params_list) :
             if params["typ"] not in ["NIGHTTIME"] or i_params == len(params_list)-1 or not params_list[i_params+1]["same_ax"] : #nighttime must be at the end
@@ -794,6 +768,7 @@ class Proj():
         return params_list
     
     def get_params_for_plot(self, params_list, **kwargs):
+        # Iterate over the plots
         for i_params, params in enumerate(params_list) :
             typename = params["typ"].upper() 
             #Get the missing data with dom.get_data or in the former figure if "same_ax" = True
@@ -818,12 +793,13 @@ class Proj():
             params["kwargs_get_data"] = kwargs_get_data
             params = self.get_params_from_same_or_dom(params, dom, params_before, kwargs_get_data)
             
+            # get points for vertical cross-sections
             if "kwargs_get_data" in params and "vinterp" in params["kwargs_get_data"] :
                 points = self.get_points_for_vcross(dom, params["kwargs_get_data"]["vinterp"]["points"])
                 params["kwargs_get_data"]["vinterp"]["points"] = points
                 
+            # Get main data
             if "X" in params and type(params["X"]) is str :
-                # print(params["X"], i_params, params["typ"], dom.name)
                 params["Xname"] = params["X"]
                 params["X"] = self.get_data(dom, params["Xname"], **kwargs_get_data)
             if "Xname" in params :
@@ -987,6 +963,8 @@ class Proj():
         #manage_dict.print_dict(params_list, "get")
         
     def get_params_from_same_or_dom(self, params, dom, params_before, kwargs_get_data) :
+        """ Search for some parameters of params in the former params
+        """
         for params_key, params_i in params.items() :
             if type(params_i) is dict and not params_key.startswith("kwargs"):
                 if "get" in params_i :
@@ -1018,6 +996,8 @@ class Proj():
         return params
     
     def get_title_savepath(self, params_list, **kwargs):
+        """ Compute a default title and savepath (not very good)
+        """
         dom_list = []
         typename_list = []
         varname_s_list = []
@@ -1143,6 +1123,8 @@ class Proj():
             i_params+=1 
     
     def get_X_for_vinterp(self, kw_get, Z=None, dom=None, KM=False) :
+        """ Get the horizontal coordinate in a vertical cross-section
+        """
         if not "vinterp" in kw_get :
             raise(Exception("error in Proj.get_X_for_vinterp : no vinterp in kwargs_get_data"))
         else :
@@ -1161,9 +1143,7 @@ class Proj():
             return np.linspace(-distance/2, distance/2, NX)[:,0]
     
     def get_name(self, dom) :
-        """
-        Get name of dom or expe
-        note  : dom can also be Expe if get_cmap is defined
+        """ Get name of dom or expe
         """
         try :
             dom = self.get_dom_expe(dom)
@@ -1172,15 +1152,13 @@ class Proj():
             return dom
     
     def get_cmap(self, dom, varname) :
-        """
-        wrapper of dom.get_cmap
+        """ Wrapper of dom.get_cmap
         note  : dom can also be Expe if get_cmap is defined
         """
         return dom.get_cmap(varname)
     
     def get_legend(self, dom, varname, **kwargs) :
-        """
-        wrapper of dom.get_legend
+        """ Wrapper of dom.get_legend
         note : dom can also be Expe if get_legend is defined
         """
         try : 
@@ -1195,6 +1173,8 @@ class Proj():
                 return varname
     
     def get_NT(self, dom=None, Z=None, **kwargs_get_data):
+        """ Get length of the time axis of a data
+        """
         if dom is not None :
             dom = self.get_dom_expe(dom)
             return len(self.get_data(dom, "TIME", **kwargs_get_data))
@@ -1414,6 +1394,8 @@ class Proj():
         return self.plot_fig(params, **kwargs_plot), params
 
     def plot_Taylor_diagram(self, reference, variable, itime=None, timestep=None, dom_list=None, location=None, levels=None, legend=None, ref_legend=None, marker_list=None, color_list=None, saved_list=None, title=True, unit=None, **kw_get) :
+        """ Plot the Taylor Diagram of some domain results, compared to a reference
+        """
         #preparing parameters
         reference = self.get_dom_expe(reference)
         ref_legend = reference.name if ref_legend is None else ref_legend
@@ -1524,6 +1506,8 @@ class Proj():
         return fig
         
     def plot_mesh(self, dom, savepath=None):
+        """ Plot the vertical mesh of a domain
+        """
         dom = self.get_dom(dom)
         HT = dom.get_data("HT")
         pos = np.where(HT == np.min(HT))
@@ -1591,9 +1575,3 @@ class Proj():
         print("")
         for dom in self.tab_dom:
             dom.display(pref) 
-    
-    
-    
-    
-    
-  

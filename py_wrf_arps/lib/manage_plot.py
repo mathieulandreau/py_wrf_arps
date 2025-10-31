@@ -165,7 +165,7 @@ def plot_fig(params_list, n_procs=1):
         if params["typ"] in ["UV", "UV2", "WDH"] :
             tab_proj[params["i_ax"]-1] = "polar"
     
-    savepath, savefmt, bbox_inches = get_savepath_fmt_bbox(params_list, is_video)
+    savepath, savefmt, bbox_inches, transparent = get_savepath_fmt_bbox(params_list, is_video)
     print("ploting fig ", savepath)
     NY_subplots = (N_subplots-1)//NX_subplots + 1
     if NX_subplots*DX_subplots > width_screen :
@@ -211,8 +211,8 @@ def plot_fig(params_list, n_procs=1):
             print(NT)
             anim = matplotlib.animation.FuncAnimation(fig, animate, interval=100, frames=NT-1)
             if savepath is not None :
-                writervideo = matplotlib.animation.FFMpegWriter(fps=fps) 
-                anim.save(savepath+"."+savefmt, writer=writervideo)
+                writervideo = matplotlib.animation.FFMpegWriter(fps=fps, codec="png" if transparent else None) 
+                anim.save(savepath+"."+savefmt, writer=writervideo, savefig_kwargs={'transparent': True, 'facecolor': 'none'} if transparent else {})
             return fig
             
     else :
@@ -228,6 +228,7 @@ def plot_fig(params_list, n_procs=1):
 def get_savepath_fmt_bbox(params_list, video) :
     #default values
     savepath = None 
+    transparent = False 
     if video == True :
         savefmt = "avi"
     else :
@@ -237,6 +238,8 @@ def get_savepath_fmt_bbox(params_list, video) :
     for params in params_list :
         if "savepath" in params :
             savepath = params["savepath"]
+        if "transparent" in params :
+            transparent = params["transparent"]
         if "savefmt" in params : 
             savefmt = params["savefmt"]
         if "tight" in params and params["tight"] :
@@ -247,7 +250,7 @@ def get_savepath_fmt_bbox(params_list, video) :
     if savepath is not None and not os.path.exists(os.path.dirname(savepath)):
         print('Create figure directory in {0}'.format(os.path.dirname(savepath)))
         os.makedirs(os.path.dirname(savepath), exist_ok=True)
-    return savepath, savefmt, bbox_inches
+    return savepath, savefmt, bbox_inches, transparent
 
 def get_NT_fps(params_list):
     NT = 0
@@ -412,7 +415,7 @@ def ax_scatter(ax, X, Y, Z, clim=None, clabel=None, label=None, it=None, ticks=N
     return plot_obj
 
 def ax_2D_plot(ax, X, Y, Z, clim=None, ticks=None, ticklabels=None, clabel=None, it=None, plot_obj=None, plot_cbar=True, discrete=None, nancolor=None, 
-               mesh=True, kwargs_plt={}, typ="2D", **kwargs):
+               mesh=True, kwargs_plt={}, typ="2D", plot_scale=False, **kwargs):
     """
     make a pcolor plot with the params
     ax : an ax or subplot of a pyplot figure (see plot_fig), passed as a pointer
@@ -468,6 +471,22 @@ def ax_2D_plot(ax, X, Y, Z, clim=None, ticks=None, ticklabels=None, clabel=None,
             cbar.set_label(clabel)
             if ticklabels is not None :
                 cbar.ax.set_yticklabels(ticklabels)
+        if plot_scale :
+            barlength =  np.diff(ax.get_xticks())[0]
+            # xmax = np.max(Xi)
+            # xmin = np.min(Xi)
+            xmin, xmax = ax.set_xlim()
+            ymin, ymax = ax.set_ylim()
+            xextent = xmax - xmin
+            yextent = ymax - ymin
+            barmax = xmax - 0.02*xextent
+            barmin = barmax - barlength
+            bary = ymin + 0.01*yextent
+            bary2 = ymin + 0.02*yextent
+            ax = plt.gca()
+            ax.add_patch(mpl_Rectangle((xmax-0.04*xextent-barlength, ymin), 0.04*xextent+barlength, 0.05*yextent, facecolor = [0.8, 0.8, 0.8, 0.9], zorder=200))
+            ax.plot([barmin, barmax], [bary, bary], linewidth=3, color="k", zorder=201)
+            ax.text(barmin, bary2, f"{int(barlength)} km", zorder=202)
     return plot_obj
             
 def ax_contour(ax, X, Y, Z, clabel=True, label=None, labels=None, fontsize=15, it=None, plot_obj=None, kwargs_plt=default_params["CONTOUR"]["kwargs_plt"], **kwargs):
@@ -608,7 +627,7 @@ def ax_quiver(ax, X, Y, U, V, size=1, step=18, stepx=None, label=None, plot_lege
             dx = (xlim[1] - xlim[0])*0.2*(0.6+0.4*size)
             dy = (ylim[1] - ylim[0])*0.05
             ax.add_patch(matplotlib.patches.Rectangle([x0, y0], dx, dy, color=[0.8, 0.8, 0.8, 0.9]))
-            matplotlib.pyplot.quiverkey(plot_obj, x0+dx/2.5, y0+dy/2, *args_key, coordinates = "data", labelpos="E")
+            matplotlib.pyplot.quiverkey(plot_obj, x0+dx/2.5, y0+dy/2, *args_key, coordinates="data", labelpos="E")
     return plot_obj
  
 
@@ -829,9 +848,13 @@ def ax_date(ax, x, y, Z, it=None, plot_obj=None, kwargs_plt=default_params["DATE
     if type(xi) is str :
         x0, x1 = ax.get_xlim()
         dx = x1-x0
+        y0, y1 = ax.get_ylim()
+        dy = y1-y0
         if xi == "right" :
-            xi = x1-0.25*dx
+            xi = x1-0.20*dx
+            ax.add_patch(matplotlib.patches.Rectangle([x1-0.22*dx, y1-0.06*dy], 0.22*dx, 0.06*dy, color=[0.8, 0.8, 0.8, 0.9], zorder=200))
         else :
+            if kwargs["fmt"] == "video" : ax.add_patch(matplotlib.patches.Rectangle([x0, y1-0.06*dy], 0.65*dx, 0.06*dy, color=[0.8, 0.8, 0.8, 0.9], zorder=200))
             xi = x0+0.01*dx
     if type(yi) is str :
         y0, y1 = ax.get_ylim()
@@ -845,7 +868,7 @@ def ax_date(ax, x, y, Z, it=None, plot_obj=None, kwargs_plt=default_params["DATE
         plot_obj.set_text(Zi)
         plot_obj.set_position((xi, yi))
     else :
-        plot_obj = ax.text(xi, yi, Zi, **kwargs_plt)
+        plot_obj = ax.text(xi, yi, Zi, zorder=201, **kwargs_plt)
     return plot_obj
 
 def ax_vline(ax, X, label=None, it=None, plot_obj=None, kwargs_plt=default_params["AXVLINE"]["kwargs_plt"], **kwargs):

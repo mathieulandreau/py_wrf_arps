@@ -2117,12 +2117,12 @@ class Dom():
                 return -s*var1 + fac*c*var2
             
     def calculate_derivative(self, varname, **kwargs):
-        """:
-        Calculate the spatial derivative of a value
-        Note : for inherited class (like DomARPS, DomWRF, ...) the inherited method (DomWRF.calculate, ...) is called first and 
-               if the variable isn't defined in the inherited method, then Dom.calculate is called
-        varname : str : name of the variable 
-        kwargs : all the kwargs from get_data
+        """ Calculate the spatial derivative of a value
+            Note: for inherited class (like DomARPS, DomWRF, ...) the inherited method (DomWRF.calculate, ...) is called first and 
+                   if the variable isn't defined in the inherited method, then Dom.calculate is called
+            Warning: the computation is very slow and could be improved
+        varname (str): name of the variable 
+        kwargs: all the kwargs from get_data
         27/02/2023 : Mathieu LANDREAU
         28/06/2023 : ML - add derivatives for non-WRF domains
         """ 

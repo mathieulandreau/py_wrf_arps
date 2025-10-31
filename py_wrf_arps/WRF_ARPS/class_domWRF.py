@@ -53,6 +53,8 @@ class DomWRF(Dom):
         super().__init__(*args, **kwargs)
     
     def get_output_filenames(self):
+        """ Search in the outputdir and postprocdir for data files, and store them in self.output_filenames
+        """
         self.output_filenames = {
             "hist" : {},
             "base" : {},
@@ -111,14 +113,12 @@ class DomWRF(Dom):
         for filename in os.listdir(self.postprocdir):
             if filename.startswith(self.name + "_post_static" ):
                 self.FLAGS['post_static'] = True
-                # if False:
                 if self.keep_open :
                     self.output_filenames['post_static'][self.postprocdir + filename] = Dataset(self.postprocdir + filename, "r")
                 else :
                     self.output_filenames['post_static'][self.postprocdir + filename] = True
             elif filename.startswith(self.name + "_post_" ):
                 self.FLAGS['post'] = True
-                # if False:
                 if self.keep_open :
                     self.output_filenames['post'][self.postprocdir + filename] = Dataset(self.postprocdir + filename, "r")
                 else :
@@ -137,6 +137,8 @@ class DomWRF(Dom):
         self.output_filenames['post'] = collections.OrderedDict(sorted(self.output_filenames['post'].items()))
         
     def init_saved_variables(self):
+        """ Init some variables based on an output file
+        """
         if self.FLAGS['base'] :
             key = 'base' #for dom_WRFinput and new wrf settings when static data are in user-defined wrf_static
         else :
@@ -241,11 +243,18 @@ class DomWRF(Dom):
             file.close()
     
     def init_hardcoded_variables(self) :
+        """ Init some hardcoded variables
+        """
         for varname in self.avg_from_ac_list :
             if not varname in self.VARIABLES :
                 self.VARIABLES[varname] = Variable(varname, varname, "$W.m^{-2}$", "W.m-2", 2, cmap=self.get_cmap("AC"+varname[:-4]))
             
     def calculate(self, varname, **kwargs):
+        """ Redefinition of Dom.calculate for WRF variables. 
+            This function manage the calculation of all the secondary variables (computed based on primary variables). 
+            Be careful, the calculation is very dependent on the choice of the output variables from WRF. 
+            For now, it is made for the simulation using WRFstats: https://github.com/mathieulandreau/Landreau_Conan_Luce_Calmet_a1
+        """
         if varname in ["U_PERT", "V_PERT", "W_PERT", "M_PERT", "MH_PERT", "WD_PERT", "QV_PERT"]: #BASE = 0 => PERT = Total
             return self.get_data(varname[:-5], **kwargs)
         elif varname in ["U_BASE", "V_BASE", "W_BASE", "M_BASE", "MH_BASE", "WD_BASE", "QV_BASE"]: #BASE = 0
@@ -685,9 +694,7 @@ class DomWRF(Dom):
             return Dom.calculate(self, varname, **kwargs)
     
     def calculate_statistics(self, varname, **kwargs):
-        """
-        Description
-            Calculate the centered statistics based on the non-centered statistics calculated by WRFstats
+        """ Calculate the centered statistics based on the non-centered statistics calculated by WRFstats
         Parameters
             varname (str) : see Dom.get_data
         Optional
@@ -739,10 +746,9 @@ class DomWRF(Dom):
             return Dom.calculate_statistics(self, varname, **kwargs)
     
     def calculate_stress_tensor_bilan_term(self, varname_in, p="", **kwargs) :
-        """
-        Description
-            Calculate the terms of the stress tensor bilan (e.g. Deardorff 1980, https://doi.org/10.1007/BF00119502)
+        """ Calculate the terms of the stress tensor bilan (e.g. Deardorff 1980, https://doi.org/10.1007/BF00119502)
             Warning : The derivatives are in WRF coordinates (DXW_xx) because I calculated these terms over water where the correction from WRF to cartesian referential frame is negligible. Over land, it would be better to change the derivatives to DXC_xx
+            The terms are calculated by on the output from WRFstats: https://github.com/mathieulandreau/WRFstats
         Parameters
             varname : str : name of the variable 
             p : str : prefix for rotation (see Dom.calculate_rotation) : can be AD225_ or CC_, ... The rotation must be calculated on derivatives and variances first
@@ -934,26 +940,6 @@ class DomWRF(Dom):
         elif varname in ["GWW"]:
             return 2*self.get_data("COVWS3", **kwargs)
         
-        # Non-hydrostatic pressure transfer term
-        # elif varname in ["NUU"]:
-        #     RHO, DXW_COVUP = self.get_data(["RHO", p+"DXW_"+p+"COVUPNH"], **kwargs)
-        #     return -2*DXW_COVUP/RHO
-        # elif varname in ["NVV"]:
-        #     RHO, DYW_COVVP = self.get_data(["RHO", p+"DYW_"+p+"COVVPNH"], **kwargs)
-        #     return -2*DYW_COVVP/RHO
-        # elif varname in ["NWW"]:
-        #     RHO, DZ_COVWP = self.get_data(["RHO", "DZ_COVWPNH"], **kwargs)
-        #     return -2*DZ_COVWP/RHO
-        # elif varname in ["NUV"] :
-        #     RHO, DXW_COVVP, DYW_COVUP = self.get_data(["RHO", p+"DXW_"+p+"COVVPNH", p+"DYW_"+p+"COVUPNH"], **kwargs)
-        #     return -(DXW_COVVP + DYW_COVUP)/RHO
-        # elif varname in ["NUW"] :
-        #     RHO, DXW_COVWP, DZ_COVUP = self.get_data(["RHO", p+"DXW_COVWPNH", "DZ_"+p+"COVUPNH"], **kwargs)
-        #     return -(DXW_COVWP + DZ_COVUP)/RHO
-        # elif varname in ["NVW"] :
-        #     RHO, DYW_COVWP, DZ_COVVP = self.get_data(["RHO", p+"DYW_COVWPNH", "DZ_"+p+"COVVPNH"], **kwargs)
-        #     return -(DYW_COVWP + DZ_COVVP)/RHO
-        
         # 2nd turbulent diffusion of TKE
         elif varname in ["KUU"]:
             return self.get_data("M3UUDIV", **kwargs)
@@ -1000,9 +986,7 @@ class DomWRF(Dom):
             raise(Exception(f"Unknown stress tensor bilan term : {varname}, check the is_stress_tensor_bilan_term function"))
 
     def calculate_stability(self, varname, **kwargs):
-        """
-        Description
-            Calculate the stability variables specific to WRF
+        """ Calculate the stability variables specific to WRF
         Parameters
             varname : str : name of the variable 
         Optional
@@ -1041,14 +1025,15 @@ class DomWRF(Dom):
             return Dom.calculate_stability(self, varname, **kwargs)
     
     def calculate_derivative(self, varname, **kwargs):
-        """:
-        Calculate the spatial derivative of a value
-        Note : for inherited class (like DomARPS, DomWRF, ...) the inherited method (DomWRF.calculate, ...) is called first and 
-               if the variable isn't defined in the inherited method, then Dom.calculate is called
-        varname : str : name of the variable 
-        kwargs : all the kwargs from get_data
-        27/02/2023 : Mathieu LANDREAU
-        28/06/2024 : ML moved in class_domWRF
+        """ Calculate the spatial derivative of a value
+            Note: for inherited class (like DomARPS, DomWRF, ...) the inherited method (DomWRF.calculate, ...) is called first and 
+                   if the variable isn't defined in the inherited method, then Dom.calculate is called
+            Warning: the computation is very slow and could be improved
+        Parameters
+            varname (str): name of the variable 
+            kwargs: all the kwargs from get_data
+        27/02/2023: Mathieu LANDREAU
+        28/06/2024: ML moved in class_domWRF
         """ 
         #ETA derivative in WRF referential frame (t, x, y, eta)
         if varname.startswith("DETA_") :
@@ -1130,22 +1115,10 @@ class DomWRF(Dom):
                 return DTW_var
             else : 
                 DTW_ZP = self.get_data("DTW_ZP", **kwargs)
-                # DETA_ZP = self.get_data("DETA_ZP", **kwargs)
-                # DETA_var = self.get_data("DETA_"+varname2, **kwargs)
-                # if debug : print(self.prefix, "DTC", DTW_var.shape, DTW_ZP.shape, DETA_var.shape, DETA_ZP.shape)
-                # return DTW_var - DTW_ZP*DETA_var/DETA_ZP
                 DZ_var = self.get_data("DZ_"+varname2, **kwargs)
                 if debug : print(self.prefix, "DTC", DTW_var.shape, DTW_ZP.shape, DZ_var.shape)
                 return DTW_var - DTW_ZP*DZ_var
             
-        #Z derivative in cartesian referential frame (t, x, y, z)
-        # elif varname.startswith("DZ_") : 
-        #     varname2 = varname[3:]
-        #     DETA_ZP = self.get_data("DETA_ZP", **kwargs)
-        #     DETA_var = self.get_data("DETA_"+varname2, **kwargs)
-        #     if debug : print(self.prefix, "DZ", DETA_var.shape, DETA_ZP.shape)
-        #     return DETA_var/DETA_ZP
-        
         #Y derivative in cartesian referential frame (t, x, y, z)
         elif varname.startswith("DYC_") : 
             varname2 = varname[4:]
@@ -1154,10 +1127,6 @@ class DomWRF(Dom):
                 return DYW_var
             else : 
                 DYW_ZP = self.get_data("DYW_ZP", **kwargs)
-                # DETA_ZP = self.get_data("DETA_ZP", **kwargs)
-                # DETA_var = self.get_data("DETA_"+varname2, **kwargs)
-                # if debug : print(self.prefix, "DYC", DYW_var.shape, DYW_ZP.shape, DETA_var.shape, DETA_ZP.shape)
-                # return DYW_var - DYW_ZP*DETA_var/DETA_ZP
                 DZ_var = self.get_data("DZ_"+varname2, **kwargs)
                 if debug : print(self.prefix, "DYC", DYW_var.shape, DYW_ZP.shape, DZ_var.shape)
                 return DYW_var - DYW_ZP*DZ_var
@@ -1170,10 +1139,6 @@ class DomWRF(Dom):
                 return DXW_var
             else : 
                 DXW_ZP = self.get_data("DXW_ZP", **kwargs)
-                # DETA_ZP = self.get_data("DETA_ZP", **kwargs)
-                # DETA_var = self.get_data("DETA_"+varname2, **kwargs)
-                # if debug : print(self.prefix, "DXC", DXW_var.shape, DXW_ZP.shape, DETA_var.shape, DETA_ZP.shape)
-                # return DXW_var - DXW_ZP*DETA_var/DETA_ZP
                 DZ_var = self.get_data("DZ_"+varname2, **kwargs)
                 if debug : print(self.prefix, "DXC", DXW_var.shape, DXW_ZP.shape, DZ_var.shape)
                 return DXW_var - DXW_ZP*DZ_var
@@ -1183,6 +1148,8 @@ class DomWRF(Dom):
             return Dom.calculate_derivative(self, varname, **kwargs)
             
     def calculate_ts(self, varname, **kwargs):
+        """ Calculate time series from the wrf_timeseries output
+        """
         if varname[-7] == "_" : #loc is a 3 letters char
             varname_short = varname[:-7]
             loc = varname[-6:-3]
@@ -1201,23 +1168,6 @@ class DomWRF(Dom):
             first_line, last_line = self.get_ts_time_slice(loc, **kwargs)
             TIME_TS, _, _ = self.get_ts(loc, "U10", first_line=first_line, last_line=last_line, **kwargs)
             return TIME_TS
-            """
-            elif varname_short == "ZP" : 
-            ZPTS = self.get_data("ZPTS_" + loc + "_TS", **kwargs)
-            HT = self.get_ts_params(loc)["HT"]
-            print(self.prefix, ZPTS)
-            print(self.prefix, ZPTS.shape)
-            if ZPTS.ndim == 1 :
-                ZP_ZSTAG = np.concatenate((np.array([HT]), ZPTS))
-                ZP = (ZP_ZSTAG[1:] + ZP_ZSTAG[:-1])*0.5
-            else :
-                NT = len(ZPTS)
-                print(self.prefix, ZPTS.shape)
-                ZP_ZSTAG = np.concatenate((np.expand_dims(np.array(NT*[HT]), axis=-1), ZPTS), axis=-1)
-                print(self.prefix, ZP_ZSTAG.shape)
-                ZP = (ZP_ZSTAG[:, 1:] + ZP_ZSTAG[:, :-1])*0.5
-            return ZP
-            """
         elif varname_short == "MH" : 
             Uname = "U_" + loc + "_TS"
             Vname = "V_" + loc + "_TS"
@@ -1257,6 +1207,8 @@ class DomWRF(Dom):
             raise(Exception("error in WRF.calculate : unknow tslist variable : " + varname + ", " + varname_short))
     
     def calculate_tsstats(self, varname, **kwargs):
+        """ Calculate statistics based on the time series from the wrf_timeseries output
+        """
         # Get all info from varname
         temp = varname.split("_")
         typ = temp[-1][2:]
@@ -1331,8 +1283,7 @@ class DomWRF(Dom):
         return np.squeeze(VAR_out)
     
     def get_ts_params(self, pfx) :
-        """
-        Read time series files if option is activated in WRF
+        """ Read time series files if the wrf_timeseries option is activated in WRF
         """
         if not pfx in self.output_filenames["ts"] :
             manage_dict.print_dict(self.output_filenames["ts"], "self.output_filenames['ts']")
@@ -1365,8 +1316,7 @@ class DomWRF(Dom):
         return ts_params
     
     def get_ts_time_slice(self, loc, **kwargs):
-        """
-        A faster method to get TIME_TS, but I don't have time for this :
+        """ A faster method to get TIME_TS, but I don't have time for this :
         import linecache
         NT = sum(1 for line in open(filename))
         t0 = float(linecache.getline(filename, 2).split()[1]) 
@@ -1384,8 +1334,7 @@ class DomWRF(Dom):
         return first_line, last_line
     
     def get_ts(self, pfx, varname, first_line=0, last_line=None, crop=None, **kwargs):
-        """
-        Read time series files if option is activated in WRF
+        """ Read time series files if the wrf_timeseries option is activated in WRF
         """
         if not pfx in self.output_filenames["ts"] :
             manage_dict.print_dict(self.output_filenames["ts"], "self.output_filenames['ts']")
