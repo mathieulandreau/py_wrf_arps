@@ -1,3 +1,5 @@
+import numpy as np
+
 def is_iterable(x) :
     try:
         iter(x)

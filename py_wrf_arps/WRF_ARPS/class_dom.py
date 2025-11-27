@@ -486,6 +486,7 @@ class Dom():
                 return self.date_list_stats[time_slice] if return_val else None
             
             # for WD or COV or ... , it is better to interpolate or average other quantities and then calculate, so we skip this now and go to calculate first
+            not_avg = varname in ["X", "Y", "X_KM", "Y_KM"]
             avg_before = (varname.startswith("WD") or varname.startswith("MH") or varname.startswith("SCORER") or self.is_statistics(varname, avg_stats) or self.is_normdir(varname) or varname.upper() in ["DGWRDT", "GAMMA", "IT", "IZ", "IY", "IX", "MG"])
             interp_before = avg_before or varname.startswith("X2DV")
             smooth_before = interp_before or ("TIME" in varname or varname in ["X", "Y", "LON", "LAT"] or varname[:2] in ["DX", "DY"] \
@@ -495,11 +496,11 @@ class Dom():
             kw_get = dict(time_slice=time_slice, crop=crop, i_unstag=i_unstag, avg=avg, avg_time=avg_time, DX_smooth=DX_smooth, n_procs=n_procs, sigma=sigma, 
                           saved=saved, squeeze=False, avg_stats=avg_stats, avg_deriv=avg_deriv, quick_deriv=quick_deriv, save=save, print_level=print_level)
             # Averaging, filtering and interpolation
-            if avg_area is not None and not avg_before and self.get_dim(varname) > 1 :
+            if avg_area is not None and not avg_before and not not_avg and self.get_dim(varname) > 1 :
                 if debug or print_this : print(self.prefix, "avg_area varname =", varname, " avg_area = ", avg_area)
                 data = self.avg_area(varname, avg_area, hinterp=hinterp, **kw_get)
                 
-            elif hinterp is not None and not interp_before and self.get_dim(varname) > 2 :
+            elif hinterp is not None and not interp_before and not not_avg and self.get_dim(varname) > 2 :
                 if debug or print_this : print(self.prefix, "hinterp", varname)
                 data = self.hinterp(varname, **kw_get, **hinterp)
                 
@@ -507,7 +508,7 @@ class Dom():
                 if debug or print_this : print(self.prefix, "vinterp", varname)
                 data = self.vinterp(varname, **kw_get, **vinterp)
                 
-            elif DX_smooth is not None and not smooth_before and self.get_dim(varname) > 1 : 
+            elif DX_smooth is not None and not smooth_before and not not_avg and self.get_dim(varname) > 1 : 
                 # if WD in varname, it is better to smooth U and V and then calculate WD, so we skip this and go to calculate
                 if debug or print_this : print(self.prefix, "DX_smooth", varname)
                 data = self.smooth(varname, **kw_get)
@@ -1149,7 +1150,7 @@ class Dom():
             or (varname.startswith("GW") and (varname.endswith("LAM") or varname.endswith("LAMM") or varname.endswith("DIR") or varname.endswith("S")
                                               or varname.endswith("SM") or varname.endswith("D"))) :
             return 0
-        elif varname in ["GWM2R", "GWM2L", "GWM2D", "SBZC", "LBZC", "CIBLZC", "SIBLZC", "CIBLZC2", "CIBLZC2", "PSLAS", "CIBLW", "SIBLW"] or varname.startswith("GWMASK") \
+        elif varname in ["GWM2R", "GWM2L", "GWM2D", "SBZC", "LBZC", "CIBLZC", "SIBLZC", "CIBLZC2", "SIBLZC2", "CIBLZC3", "SIBLZC3", "PSLAS", "CIBLW", "SIBLW"] or varname.startswith("GWMASK") \
         or varname.startswith("LLJ_") or varname.startswith("LLJ2_"):
             return 2
         else : 
@@ -1828,7 +1829,7 @@ class Dom():
             CC_U = self.get_data("CC_U", **new_kwargs)
             zaxis = self.find_axis("z", dim=3, **new_kwargs)
             return self.get_Z_SB_LB(CC_U, Z, typ=varname[-2:], zaxis=zaxis)
-        elif varname in ["SBZC", "LBZC", "CIBLZC", "SIBLZC", "CIBLZC2", "SIBLZC2", "SBZC2", "LBZC2", "SBMH", "LBMH", "SBMHR", "LBMHR"] :
+        elif varname in ["SBZC", "LBZC", "CIBLZC", "SIBLZC", "CIBLZC2", "SIBLZC2", "CIBLZC3", "SIBLZC3", "SBZC2", "LBZC2", "SBMH", "LBMH", "SBMHR", "LBMHR"] :
             crop = kwargs["crop"]
             if crop[0] in ["ALL", [0, self.get_data("NZ")]] or (type(crop[0]) is list and crop[0][0] == 0 and crop[0][1] > 10) :
                 new_kwargs = kwargs
@@ -1855,6 +1856,9 @@ class Dom():
             elif varname in ["CIBLZC2", "SIBLZC2"]:
                 NBV2 = self.get_data("NBV2", **new_kwargs)
                 return self.get_Z_TIBL2(NBV2, Z, typ=varname[:4], zaxis=zaxis)
+            elif varname in ["CIBLZC3", "SIBLZC3"]:
+                NBV2 = self.get_data("NBV2", **new_kwargs)
+                return self.get_Z_TIBL2(NBV2, Z, typ=varname[:4], zaxis=zaxis, threshold=2e-4)
         elif varname in ["CIBLW", "SIBLW"]: #w* TIBL
             ZC, SH_FLX = self.get_data([varname[:4]+"ZC", "SH_FLX"], **kwargs)
             W_STAR = (ZC*constants.BETA*SH_FLX/(1.2*constants.CP))**(1/3) #rho=1.2

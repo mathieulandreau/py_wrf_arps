@@ -62,6 +62,7 @@ plt.rc('ytick', labelsize=20) #fontsize of the y tick labels
 plt.rc('legend', fontsize=20) #fontsize of the legend
 dtFmt = mdates.DateFormatter('%d%b %Hh')
 
+# colormap for wind direction (with red at 45° (land) and blue at 225° (sea))
 cmap_circ = plt.cm.twilight
 angle_mer = 135
 shift = ((360-angle_mer)/360)%1
@@ -108,13 +109,16 @@ FLAGS = {
 debug = False
 
 def plot_fig(params_list, n_procs=1):
+    """ manage the plot of figures and video, creates a figure object and call ax_plot for each type of plots in params
+    """
     if type(params_list) is not list : params_list = [params_list]
+    
+    # calculate the number of figures, attribute indices and call recursively plot_fig for each figure
     N_figures = 1
     for i_params, params in enumerate(params_list) :
         if i_params > 0 and "same_fig" in params and not params["same_fig"] :
             N_figures += 1
         params["i_fig"] = N_figures
-            
     if N_figures > 1 :
         n_procs = min(N_figures, n_procs)
         params_list_list = []
@@ -143,6 +147,7 @@ def plot_fig(params_list, n_procs=1):
         
     
     # IF ONLY ONE FIGURE :
+    # Define subplot size and the amount of subplots
     N_subplots = 0
     DX_subplots, DY_subplots = 12, 8
     NX_subplots = 2
@@ -159,12 +164,14 @@ def plot_fig(params_list, n_procs=1):
     NX_subplots = min(NX_subplots, N_subplots)
     is_video = False
     tab_proj = N_subplots*[None]
+    # propagate the video and projections
     for params in params_list : 
         if "video" in params and params["video"] != False :
             is_video = params["video"]
         if params["typ"] in ["UV", "UV2", "WDH"] :
             tab_proj[params["i_ax"]-1] = "polar"
     
+    # create the figure object with the axes
     savepath, savefmt, bbox_inches, transparent = get_savepath_fmt_bbox(params_list, is_video)
     print("ploting fig ", savepath)
     NY_subplots = (N_subplots-1)//NX_subplots + 1
@@ -176,9 +183,11 @@ def plot_fig(params_list, n_procs=1):
     ax_list = []
     for i_ax in range(N_subplots) :
         ax_list.append(fig.add_subplot(NY_subplots, NX_subplots, i_ax+1, projection=tab_proj[i_ax])) 
+    
+    # manage videos
     if is_video != False :
         NT, fps = get_NT_fps(params_list)
-        #plot the first time
+        #plot for the first time
         for params in params_list :
             i_ax = params["i_ax"]-1
             ax = ax_list[i_ax]
@@ -214,7 +223,7 @@ def plot_fig(params_list, n_procs=1):
                 writervideo = matplotlib.animation.FFMpegWriter(fps=fps, codec="png" if transparent else None) 
                 anim.save(savepath+"."+savefmt, writer=writervideo, savefig_kwargs={'transparent': True, 'facecolor': 'none'} if transparent else {})
             return fig
-            
+    # if not video, iterate over the plots
     else :
         for params in params_list :
             i_ax = params["i_ax"]-1
@@ -226,6 +235,8 @@ def plot_fig(params_list, n_procs=1):
         return fig
 
 def get_savepath_fmt_bbox(params_list, video) :
+    """ get characteristics of the figure by iterating over params_list
+    """
     #default values
     savepath = None 
     transparent = False 
@@ -253,6 +264,8 @@ def get_savepath_fmt_bbox(params_list, video) :
     return savepath, savefmt, bbox_inches, transparent
 
 def get_NT_fps(params_list):
+    """ get characteristics of the video by iterating over params_list
+    """
     NT = 0
     fps = VARPLOT["fps"]
     for params in params_list :
@@ -266,47 +279,49 @@ def get_NT_fps(params_list):
     return NT, fps
 
 def ax_plot(ax, **params):
+    """ wrapper to call the good type of plot
+    """
     typename = params["typ"].upper()  
     #manage_dict.print_dict(params, typename)
     if typename in ["2D_HORIZONTAL" , "2DH", "2D", "ZT", "VCROSS", "VERTCROSS", "2DV", "2D_VERTICAL"] or "2D" in typename:
-        plot_obj = ax_2D_plot(ax, **params)
+        plot_obj = ax_2D_plot(ax, **params) #plt.pcolormesh
     elif typename in ["TIME", "T", "1DT", "1D", "POINT"]:
-        plot_obj = ax_1D_plot(ax, **params)
+        plot_obj = ax_1D_plot(ax, **params) #plt.plot
     elif typename == "SCATTER":
-        plot_obj = ax_scatter(ax, **params)
+        plot_obj = ax_scatter(ax, **params) #plt.scatter
     elif typename == "QUIVER":
-        plot_obj = ax_quiver(ax, **params)
+        plot_obj = ax_quiver(ax, **params) #plt.quiver
     elif typename == "BARBS":
-        plot_obj = ax_barbs(ax, **params)
+        plot_obj = ax_barbs(ax, **params) #plt.barbs
     elif typename == "UV":
-        plot_obj = ax_hodograph(ax, **params)
+        plot_obj = ax_hodograph(ax, **params) #hodograph
     elif typename == "UV2":
-        plot_obj = ax_hodograph2(ax, **params)
+        plot_obj = ax_hodograph2(ax, **params) #second type of hodograph 
     elif typename == "RECTANGLE":
-        plot_obj = ax_rectangle(ax, **params)
+        plot_obj = ax_rectangle(ax, **params) #rectangle
     elif typename == "LINE":
-        plot_obj = ax_line(ax, **params)
+        plot_obj = ax_line(ax, **params) #line
     elif typename in ["CONTOUR", "LON", "LAT", "LANDMASK", "MASK"]:
-        plot_obj = ax_contour(ax, **params)
+        plot_obj = ax_contour(ax, **params) #plt.contour
     elif typename == "NIGHTTIME":
-        plot_obj = ax_nighttime(ax, **params)
+        plot_obj = ax_nighttime(ax, **params) #add a day/night bar below the plot
     elif typename == "LANDSEA":
-        plot_obj = ax_landsea(ax, **params)
+        plot_obj = ax_landsea(ax, **params) #add a land/sea bar below the plot (for cross sections)
     elif typename == "WDH":
-        plot_obj = ax_WD_hist(ax, **params)
+        plot_obj = ax_WD_hist(ax, **params) # Histogram of wind directions in the form of hodographs
     elif typename in ["DATE", "TEXT"]:
-        plot_obj = ax_date(ax, **params)
+        plot_obj = ax_date(ax, **params) #plt.text
     elif typename == "AXVLINE":
-        plot_obj = ax_vline(ax, **params)
+        plot_obj = ax_vline(ax, **params) #plt.axvline
     elif typename == "AXHLINE":
-        plot_obj = ax_hline(ax, **params)
+        plot_obj = ax_hline(ax, **params) #plt.axhline
     elif typename == "AXVSPAN":
-        plot_obj = ax_vspan(ax, **params)
+        plot_obj = ax_vspan(ax, **params) #plt.axvspan
     elif typename == "AXHSPAN":
-        plot_obj = ax_hspan(ax, **params)
+        plot_obj = ax_hspan(ax, **params) #plt.axhspan
     else : 
-        print("error in manage_plot.ax_plot : unknown type of plot ("+typename+"), cannot plot anything")
-    if not "plot_obj" in params :
+        raise(Exception("error in manage_plot.ax_plot : unknown type of plot ("+typename+"), cannot plot anything"))
+    if not "plot_obj" in params : #if it is not a video, or if it is a video but it is the first passage
         if "title" in params : ax.set_title(params["title"])
         if "xlabel" in params : ax.set_xlabel(params["xlabel"])
         if "ylabel" in params : ax.set_ylabel(params["ylabel"])
@@ -340,10 +355,11 @@ def ax_plot(ax, **params):
                 ax.grid(params["grid"], axis=grid_axis, which=grid_which)
         if "xlim" in params : ax.set_xlim(params["xlim"])
         if "ylim" in params : ax.set_ylim(params["ylim"])
-                
     return plot_obj
 
 def ax_1D_plot(ax, X, Y, style='-', label=None, plot_obj=None, it=None, animate=False, kwargs_plt={}, **kwargs):
+    """ classical plot, managing videos
+    """
     if it is not None and animate : # for video
         Xi = X[it]
         Yi = Y[it]
@@ -354,6 +370,7 @@ def ax_1D_plot(ax, X, Y, style='-', label=None, plot_obj=None, it=None, animate=
         plot_obj.set_data(np.squeeze(Xi), np.squeeze(Yi))
     else :
         plot_obj, = ax.plot(np.squeeze(Xi), np.squeeze(Yi), style, label=label, **kwargs_plt)
+        # for videos, force fixed boundaries
         if it is not None and not "xlim" in kwargs:
             xmin, xmax = plt.xlim()
             xmax = max(np.nanmax(X), xmax)
@@ -366,18 +383,22 @@ def ax_1D_plot(ax, X, Y, style='-', label=None, plot_obj=None, it=None, animate=
             ax.set_ylim([ymin, ymax])
     return plot_obj
     
-def ax_scatter(ax, X, Y, Z, clim=None, clabel=None, label=None, it=None, ticks=None, ticklabels=None, nancolor=None, plot_obj=None, aspect=False, plot_cbar=True, discrete=None, kwargs_plt={}, typ="SCATTER", **kwargs):
+def ax_scatter(ax, X, Y, Z, clim=None, clabel=None, label=None, it=None, ticks=None, ticklabels=None, nancolor=None, plot_obj=None, aspect=False, plot_cbar=True, discrete=None, kwargs_plt={}, kwargs_cbar={}, typ="SCATTER", **kwargs):
     """
     make a pcolor plot with the params
     ax : an ax or subplot of a pyplot figure (see plot_fig), passed as a pointer
-    params : a dict with the parameters of the plot containing
-        (mandatory)
-        "X", "Y" : 2D arrays of shape (NY, NX) : the meshgrid domain
-        "Z" : 2D arrays of shape (NY, NX), The color to plot
-        (optional)
-        "kwargs_plt" : the kwargs of pcolor
-        "clim" : an array or list of length 2,  colorbar limit
-        "clabel" : label of colorbar (corresponding to Z value)
+    X, Y : 2D arrays of shape (NY, NX) : the meshgrid domain
+    Z : 2D arrays of shape (NY, NX), The color to plot
+    clim, clabel, ticks, ticklabels : parameters of the colorbar
+    label : legend
+    it : iteration index for videos
+    nancolor : color to fill the nan with
+    plot_obj : the plot object that is updated for videos (faster than creating it for each frame)
+    aspect : If True, the x and y axis are at the same scale
+    plot_cbar : False to hide the colorbar
+    discrete : with integers, the colorbar is discrete with "discrete" segments
+    kwargs_plt : the kwargs of scatter
+    kwargs_cbar : the kwargs of colorbar
     """
     cmap = kwargs_plt["cmap"] if "cmap" in kwargs_plt else None
     Z = np.squeeze(Z)
@@ -408,14 +429,14 @@ def ax_scatter(ax, X, Y, Z, clim=None, clabel=None, label=None, it=None, ticks=N
         if aspect : ax.set_aspect('equal', adjustable='box')
         plot_obj = ax.scatter(Xi, Yi, c=Zi, vmin=vmin, vmax=vmax, label=label, **kwargs_plt)
         if plot_cbar : 
-            cbar = plt.colorbar(mappable=plot_obj, ax=ax, extend=extend, ticks=ticks)
+            cbar = plt.colorbar(mappable=plot_obj, ax=ax, extend=extend, ticks=ticks, **kwargs_cbar)
             cbar.set_label(clabel)
             if ticklabels is not None :
                 cbar.ax.set_yticklabels(ticklabels)
     return plot_obj
 
 def ax_2D_plot(ax, X, Y, Z, clim=None, ticks=None, ticklabels=None, clabel=None, it=None, plot_obj=None, plot_cbar=True, discrete=None, nancolor=None, 
-               mesh=True, kwargs_plt={}, typ="2D", plot_scale=False, **kwargs):
+               mesh=True, kwargs_plt={}, kwargs_cbar={}, typ="2D", plot_scale=False, **kwargs):
     """
     make a pcolor plot with the params
     ax : an ax or subplot of a pyplot figure (see plot_fig), passed as a pointer
@@ -467,7 +488,7 @@ def ax_2D_plot(ax, X, Y, Z, clim=None, ticks=None, ticklabels=None, clabel=None,
         shading = "gouraud" if not mesh else None
         plot_obj = ax.pcolormesh(Xi, Yi, Zi, vmin=vmin, vmax=vmax, shading=shading, **kwargs_plt)
         if plot_cbar : 
-            cbar = plt.colorbar(mappable=plot_obj, ax=ax, extend=extend, ticks=ticks)
+            cbar = plt.colorbar(mappable=plot_obj, ax=ax, extend=extend, ticks=ticks, **kwargs_cbar)
             cbar.set_label(clabel)
             if ticklabels is not None :
                 cbar.ax.set_yticklabels(ticklabels)
@@ -679,7 +700,7 @@ def ax_barbs(ax, X, Y, U, V, size=1, step=18, stepx=None, label=None, it=None, p
         plot_obj = ax.barbs(Xi[s], Yi[s], Ui[s], Vi[s], label=label, **kwargs_plt)
     return plot_obj
     
-def ax_hodograph(ax, U, V, Z=None, Z_PBL=None, style='-', label=None, cmap="Spectral_r", ticks=None, discrete=None, scatter=True, clim=None, it=None, NZ=15, clabel=None, plot_obj=None, kwargs_plt=default_params["UV"]["kwargs_plt"], **kwargs):
+def ax_hodograph(ax, U, V, Z=None, Z_PBL=None, style='-', label=None, cmap="Spectral_r", ticks=None, discrete=None, scatter=True, clim=None, it=None, NZ=15, clabel=None, plot_obj=None, kwargs_plt=default_params["UV"]["kwargs_plt"], kwargs_cbar={}, **kwargs):
     if it is not None :
         Ui = U[it]
         Vi = V[it]
@@ -727,7 +748,7 @@ def ax_hodograph(ax, U, V, Z=None, Z_PBL=None, style='-', label=None, cmap="Spec
                 s = slice(0, -1, DNZ)
                 plot_obj[1] = ax.scatter(WD_rad[s], MH[s], c=Zi[s], s=100, lw=0.5, edgecolors="k", cmap=cmap)
                 plot_obj[1].set_clim(vmin=vmin, vmax=vmax)
-                plot_obj[2] = plt.colorbar(ticks=Zi[s], mappable=plot_obj[1], ax=ax, extend=extend)
+                plot_obj[2] = plt.colorbar(ticks=Zi[s], mappable=plot_obj[1], ax=ax, extend=extend, **kwargs_cbar)
                 plot_obj[2].set_label(clabel)
                 if Z_PBL is not None :
                     plot_obj[2].ax.plot([0, 1], [Z_PBLi, Z_PBLi], "r")
@@ -825,7 +846,7 @@ def ax_WD_hist(ax, X, ylim=None, label=None, it=None, plot_obj=None, kwargs_plt=
         ax.set_yticklabels([])
     return plot_obj
     
-def ax_date(ax, x, y, Z, it=None, plot_obj=None, kwargs_plt=default_params["DATE"]["kwargs_plt"], **kwargs):
+def ax_date(ax, x, y, Z, it=None, plot_obj=None, kwargs_plt=default_params["DATE"]["kwargs_plt"], fmt="WRF", **kwargs):
     Zi = Z[it] if it is not None and not type(Z) in [str] else Z
     xi = x[it] if it is not None and manage_list.is_iterable(x) and not type(x) in [str] else x
     yi = y[it] if it is not None and manage_list.is_iterable(y) and not type(y) in [str] else y
@@ -833,15 +854,9 @@ def ax_date(ax, x, y, Z, it=None, plot_obj=None, kwargs_plt=default_params["DATE
     if type(Zi) is str :
         pass
     elif type(Zi) in [datetime.datetime, np.datetime64] :
-        if "fmt" in kwargs :
-            Zi = manage_time.date_to_str(Zi, kwargs["fmt"])
-        else :
-            Zi = manage_time.date_to_str(Zi)
+        Zi = manage_time.date_to_str(Zi, fmt)
     elif type(Zi) in [datetime.timedelta, np.timedelta64] :
-        if "fmt" in kwargs :
-            Zi = manage_time.timedelta_to_str(Zi, kwargs["fmt"])
-        else :
-            Zi = manage_time.timedelta_to_str(Zi)
+        Zi = manage_time.timedelta_to_str(Zi, fmt)
     else :
         Zi = str(Zi)
         
@@ -854,7 +869,7 @@ def ax_date(ax, x, y, Z, it=None, plot_obj=None, kwargs_plt=default_params["DATE
             xi = x1-0.20*dx
             ax.add_patch(matplotlib.patches.Rectangle([x1-0.22*dx, y1-0.06*dy], 0.22*dx, 0.06*dy, color=[0.8, 0.8, 0.8, 0.9], zorder=200))
         else :
-            if kwargs["fmt"] == "video" : ax.add_patch(matplotlib.patches.Rectangle([x0, y1-0.06*dy], 0.65*dx, 0.06*dy, color=[0.8, 0.8, 0.8, 0.9], zorder=200))
+            if fmt == "video" : ax.add_patch(matplotlib.patches.Rectangle([x0, y1-0.06*dy], 0.65*dx, 0.06*dy, color=[0.8, 0.8, 0.8, 0.9], zorder=200))
             xi = x0+0.01*dx
     if type(yi) is str :
         y0, y1 = ax.get_ylim()
