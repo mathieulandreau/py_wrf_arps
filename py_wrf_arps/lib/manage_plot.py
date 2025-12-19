@@ -505,9 +505,12 @@ def ax_2D_plot(ax, X, Y, Z, clim=None, ticks=None, ticklabels=None, clabel=None,
             bary = ymin + 0.01*yextent
             bary2 = ymin + 0.02*yextent
             ax = plt.gca()
-            ax.add_patch(mpl_Rectangle((xmax-0.04*xextent-barlength, ymin), 0.04*xextent+barlength, 0.05*yextent, facecolor = [0.8, 0.8, 0.8, 0.9], zorder=200))
+            ax.add_patch(mpl_Rectangle((xmax-0.04*xextent-barlength, ymin), 0.04*xextent+barlength, 0.07*yextent, facecolor = [0.8, 0.8, 0.8, 0.9], zorder=200))
             ax.plot([barmin, barmax], [bary, bary], linewidth=3, color="k", zorder=201)
-            ax.text(barmin, bary2, f"{int(barlength)} km", zorder=202)
+            label = f"{int(barlength)} km"
+            if abs(barlength - int(barlength)) > 1e-5:
+                label = f"{int(barlength*1e3)} m"
+            ax.text(barmin, bary2, label, zorder=202)
     return plot_obj
             
 def ax_contour(ax, X, Y, Z, clabel=True, label=None, labels=None, fontsize=15, it=None, plot_obj=None, kwargs_plt=default_params["CONTOUR"]["kwargs_plt"], **kwargs):

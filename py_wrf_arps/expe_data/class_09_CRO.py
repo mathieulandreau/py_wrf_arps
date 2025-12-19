@@ -2,7 +2,7 @@ import sys
 
 from .class_expe import Expe
 from .LidarScanModule2 import LidarScan2
-from ..lib import manage_projection, manage_time, manage_angle, manage_path
+from ..lib import manage_projection, manage_time, manage_angle, manage_path, constants
 from ..post import manage_LLJ
 
 import numpy as np
@@ -146,6 +146,10 @@ class CRO(Expe):
             MH = self.get_data("MH", **kwargs)
             WD = self.get_data("WD", **kwargs)
             return MH*np.sin(np.deg2rad(angle_deg - WD))
+        elif varname.endswith("_KM") :
+            return self.get_data(varname[:-3], **kwargs)/1e3
+        elif varname.endswith("_C") :
+            return constants.Kelvin_to_Celsius(self.get_data(varname[:-2], **kwargs))
         elif varname == "U" :
             return self.get_data("U_AD270", **kwargs)
         elif varname == "V" :
